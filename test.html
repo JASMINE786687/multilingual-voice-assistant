@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h2>VAANI Translation Test</h2>
+<input id="txt" placeholder="Type: ration card" style="width:300px;padding:8px"/>
+<button onclick="test()">Translate to Tamil</button>
+<pre id="result"></pre>
+<script>
+async function test() {
+  const text = document.getElementById('txt').value;
+  const res = await fetch('http://127.0.0.1:5000/translate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text: text, target_lang: 'ta'})
+  });
+  const data = await res.json();
+  document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+}
+</script>
+</body>
+</html>

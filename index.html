@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VAANI - Voice Assistant</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+  <!-- Background Effects -->
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <!-- Top Nav Bar -->
+  <nav class="navbar">
+    <div class="nav-logo">VAANI<span class="dot">.</span></div>
+    <div class="nav-status">
+      <span class="status-dot"></span>
+      <span class="status-text">Server Live</span>
+    </div>
+    <div class="nav-badge">🏆 Hackathon 2025</div>
+  </nav>
+
+  <!-- Hero Header -->
+  <header>
+    <div class="hero-tag">🇮🇳 Made for Every Indian Citizen</div>
+
+    <h1 class="logo">
+      VAANI<span class="dot">.</span>
+    </h1>
+
+    <p class="tagline">Voice Assistant for Government Services</p>
+    <p class="sub-tagline">No English · No Typing · No Confusion</p>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat">
+        <span class="stat-num">3+</span>
+        <span class="stat-label">Services</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-num">4+</span>
+        <span class="stat-label">Languages</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-num">0</span>
+        <span class="stat-label">English Required</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+
+    <!-- Main Voice Card -->
+    <div class="card">
+
+      <!-- Card Top Label -->
+      <div class="card-label">
+        <span class="label-dot"></span>
+        Ask your question
+      </div>
+
+      <!-- Language Selector -->
+      <div class="lang-row">
+        <span class="lang-label">🌐 Language</span>
+      </div>
+        <div class="lang-pills">
+          <button class="lang-pill active" id="pill-en" onclick="setLang('en', this)">🇬🇧 English</button>
+          <button class="lang-pill" id="pill-ta" onclick="setLang('ta', this)">🇮🇳 தமிழ்</button>
+          <button class="lang-pill" id="pill-hi" onclick="setLang('hi', this)">🇮🇳 हिन्दी</button>
+          <button class="lang-pill" id="pill-te" onclick="setLang('te', this)">🇮🇳 తెలుగు</button>
+        </div>
+
+      <!-- Voice Section -->
+      <div class="voice-section">
+        <div class="voice-bars" id="voiceBars">
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+        </div>
+
+        <div class="mic-wrapper">
+          <div class="mic-ring"></div>
+          <button class="mic-btn" id="micBtn" onclick="startVoice()">
+            <span class="mic-icon">🎤</span>
+          </button>
+        </div>
+
+        <p class="status" id="status">Tap mic to speak</p>
+      </div>
+
+      <!-- Divider -->
+      <div class="divider">
+        <span class="divider-text">or type below</span>
+      </div>
+
+      <!-- Text Input -->
+      <div class="input-row">
+        <input
+          class="text-input"
+          id="textInput"
+          placeholder="Type: ration / pension / aadhaar"
+          onkeydown="if(event.key==='Enter') sendText()"
+        />
+        <button class="send-btn" onclick="sendText()">
+          Send →
+        </button>
+      </div>
+
+      <!-- Error -->
+      <div class="error-box" id="errorBox"></div>
+
+    </div>
+
+    <!-- Quick Access Chips -->
+    <div class="quick-section">
+      <p class="quick-label">⚡ Quick Access</p>
+      <div class="services-row">
+        <div class="service-chip chip-green" onclick="quickSearch('ration')">
+          <span class="chip-icon">🍚</span>
+          <span class="chip-text">Ration Card</span>
+        </div>
+        <div class="service-chip chip-blue" onclick="quickSearch('pension')">
+          <span class="chip-icon">💰</span>
+          <span class="chip-text">Pension</span>
+        </div>
+        <div class="service-chip chip-purple" onclick="quickSearch('aadhaar')">
+          <span class="chip-icon">🪪</span>
+          <span class="chip-text">Aadhaar</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result Card -->
+    <div class="result-card" id="resultBox">
+
+      <!-- Result Header -->
+      <div class="result-header">
+        <div class="result-icon-wrap">
+          <span class="result-icon">📋</span>
+        </div>
+        <div>
+          <p class="result-tag">Service Guide</p>
+          <h3 id="serviceName"></h3>
+        </div>
+      </div>
+
+      <!-- Steps -->
+      <ol class="steps-list" id="stepsList"></ol>
+
+      <!-- Actions -->
+      <div class="result-actions">
+        <button class="speak-btn" onclick="speakResult()">
+          🔊 Read Aloud
+        </button>
+        <a id="govLink" href="#" target="_blank" class="link-btn" style="display:none">
+          🌐 Official Website →
+        </a>
+      </div>
+
+    </div>
+
+    <!-- How It Works Section -->
+    <div class="how-section">
+      <p class="how-title">⚙️ How it works</p>
+      <div class="how-steps">
+        <div class="how-step">
+          <div class="how-icon">🎤</div>
+          <div class="how-text">Speak</div>
+        </div>
+        <div class="how-arrow">→</div>
+        <div class="how-step">
+          <div class="how-icon">🧠</div>
+          <div class="how-text">AI Detects</div>
+        </div>
+        <div class="how-arrow">→</div>
+        <div class="how-step">
+          <div class="how-icon">🌐</div>
+          <div class="how-text">Translates</div>
+        </div>
+        <div class="how-arrow">→</div>
+        <div class="how-step">
+          <div class="how-icon">🔊</div>
+          <div class="how-text">Speaks Back</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-logo">VAANI<span class="dot">.</span></div>
+    <p class="footer-text">Built for the people · Powered by AI · Made in India 🇮🇳</p>
+    <p class="footer-copy">© 2025 Team VAANI · Hackathon Project</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

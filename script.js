@@ -3,7 +3,7 @@
 // script.js - Final Clean Version
 // ══════════════════════════════════════════
 
-const BACKEND = "http://127.0.0.1:5000";
+const BACKEND = "https://multilingual-voice-assistant-870k.onrender.com";
 let resultText = "";
 let selectedLang = "en";
 let isListening = false;

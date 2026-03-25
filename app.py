@@ -1,3 +1,5 @@
+import requests
+import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from deep_translator import GoogleTranslator
@@ -110,6 +112,55 @@ def translate():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/speak", methods=["POST"])
+def speak():
+    data = request.get_json()
+    text = data.get("text", "")
+    lang = data.get("lang", "en")
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    voice_map = {
+        "en": ("en-IN", "en-IN-Wavenet-D"),
+        "hi": ("hi-IN", "hi-IN-Wavenet-A"),
+        "ta": ("ta-IN", "ta-IN-Wavenet-A"),
+        "te": ("te-IN", "te-IN-Wavenet-A")
+    }
+
+    language_code, voice_name = voice_map.get(lang, voice_map["en"])
+
+    API_KEY = "AIzaSyBFLBGtYdA_Qx0XtK3WziW6ba4FZBec6F8"
+
+    url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={'AIzaSyBFLBGtYdA_Qx0XtK3WziW6ba4FZBec6F8'}"
+
+    payload = {
+        "input": {"text": text},
+        "voice": {
+            "languageCode": language_code,
+            "name": voice_name
+        },
+        "audioConfig": {
+            "audioEncoding": "MP3",
+            "speakingRate": 0.9
+        }
+    }
+
+    response = requests.post(url, json=payload)
+
+    if response.status_code != 200:
+        return jsonify({"error": "TTS failed"}), 500
+
+    audio_content = response.json()["audioContent"]
+    audio_bytes = base64.b64decode(audio_content)
+
+    return audio_bytes, 200, {
+        "Content-Type": "audio/mpeg"
+    }
+
+
+
 
 import os
 

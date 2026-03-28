@@ -1,3 +1,45 @@
+// ── LOGIN CHECK ──
+function checkLogin() {
+  const token = localStorage.getItem("vaani_token");
+  const user  = JSON.parse(localStorage.getItem("vaani_user") || "null");
+
+  if (!token || !user) {
+    window.location.href = "login.html";
+    return;
+  }
+
+  // Show user name
+  document.getElementById("userName").innerText = "👤 " + user.name;
+}
+
+// ── LOGOUT ──
+async function doLogout() {
+  const token = localStorage.getItem("vaani_token");
+  try {
+    await fetch(BACKEND + "/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+  } catch {}
+  localStorage.removeItem("vaani_token");
+  localStorage.removeItem("vaani_user");
+  window.location.href = "login.html";
+}
+
+// ── SAVE HISTORY ──
+async function saveSearchHistory(serviceName) {
+  const token = localStorage.getItem("vaani_token");
+  if (!token) return;
+  try {
+    await fetch(BACKEND + "/save_history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, service: serviceName })
+    });
+  } catch {}
+}
+
 // ══════════════════════════════════════════
 // VAANI - Voice Assistant for Gov Services
 // script.js - Final Clean Version
@@ -26,10 +68,10 @@ const serviceIcons = {
 // ON PAGE LOAD
 // ══════════════════════════════════════════
 window.onload = function () {
+  checkLogin();           // ← இதை முதல்ல add பண்ணுங்க
   checkServerStatus();
   animateStatsOnLoad();
 };
-
 // ── CHECK SERVER STATUS ──
 async function checkServerStatus() {
   const statusText = document.querySelector('.status-text');
@@ -84,26 +126,20 @@ function setLang(lang, btn) {
 // Tamil/Hindi/Telugu words → English keywords
 // ══════════════════════════════════════════
 function normalizeInput(text) {
-  const keywordMap = {
-    // Tamil
-    "ரேஷன்": "ration",
-    "ரேஷன் கார்டு": "ration",
-    "உணவு அட்டை": "ration",
-    "பென்சன்": "pension",
-    "ஓய்வூதியம்": "pension",
-    "ஆதார்": "aadhaar",
-    "ஆதார் கார்டு": "aadhaar",
-    // Hindi
-    "राशन": "ration",
-    "राशन कार्ड": "ration",
-    "पेंशन": "pension",
-    "आधार": "aadhaar",
-    "आधार कार्ड": "aadhaar",
-    // Telugu
-    "రేషన్": "ration",
-    "పెన్షన్": "pension",
-    "ఆధార్": "aadhaar"
-  };
+  const keywords = {
+        "ration":           ["ration", "ration card", "food card", "ரேஷன்", "राशन", "రేషన్"],
+        "pension":          ["pension", "old age", "retirement", "பென்சன்", "ஓய்வூதியம்", "पेंशन", "పెన్షన్"],
+        "aadhaar":          ["aadhaar", "aadhar", "uid", "biometric", "ஆதார்", "आधार", "ఆధార్"],
+        "birth_certificate":["birth", "birth certificate", "பிறப்பு", "பிறப்பு சான்று", "जन्म", "జన్మ"],
+        "voter_id":         ["voter", "voter id", "election card", "வாக்காளர்", "मतदाता", "ఓటర్"],
+        "health_insurance": ["health", "ayushman", "insurance", "hospital", "மருத்துவம்", "ஆயுஷ்மான்", "आयुष्मान"],
+        "income_certificate":["income", "salary certificate", "வருமானம்", "आय प्रमाण", "ఆదాయం"],
+        "land_records":     ["land", "patta", "chitta", "land record", "நிலம்", "பட்டா", "भूमि"],
+        "scholarship":      ["scholarship", "study", "education", "கல்வி உதவித்தொகை", "छात्रवृत्ति"],
+        "driving_licence":  ["driving", "licence", "license", "dl", "ஓட்டுநர்", "ड्राइविंग"],
+        "pan_card":         ["pan", "pan card", "tax", "பான்", "पैन"],
+        "caste_certificate":["caste", "community", "sc", "st", "obc", "சாதி சான்று", "जाति"]
+    };
   const lower = text.toLowerCase().trim();
   for (const [key, value] of Object.entries(keywordMap)) {
     if (lower.includes(key.toLowerCase())) return value;
@@ -477,4 +513,36 @@ function showToast(msg) {
     toast.style.transform = "translateX(-50%) translateY(10px)";
     setTimeout(() => toast.remove(), 300);
   }, 2800);
+}
+// ── FEEDBACK ──
+async function sendFeedback(rating) {
+  const serviceName = document.getElementById("serviceName").innerText;
+  if (!serviceName) return;
+
+  try {
+    await fetch(BACKEND + "/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service: serviceName,
+        rating: rating,
+        comment: ""
+      })
+    });
+
+    const thumbsUp   = document.getElementById("thumbsUp");
+    const thumbsDown = document.getElementById("thumbsDown");
+
+    if (rating === "helpful") {
+      thumbsUp.style.background   = "rgba(0,255,136,0.3)";
+      thumbsDown.style.background = "";
+      showToast("👍 Thank you for your feedback!");
+    } else {
+      thumbsDown.style.background = "rgba(255,107,107,0.3)";
+      thumbsUp.style.background   = "";
+      showToast("👎 We will improve. Thank you!");
+    }
+  } catch {
+    showToast("Feedback saved locally!");
+  }
 }

@@ -235,5 +235,26 @@
   </footer>
 
   <script src="script.js"></script>
+  <!-- User greeting top right -->
+<div id="userGreeting" style="
+  position: fixed; top: 14px; right: 100px;
+  z-index: 101; display: flex; align-items: center; gap: 8px;
+">
+  <span id="userName" style="font-size:13px; color:#00ff88; font-weight:600;"></span>
+  <button onclick="doLogout()" style="
+    padding: 5px 12px; border-radius: 100px;
+    border: 1px solid rgba(255,107,107,0.4);
+    background: rgba(255,107,107,0.1);
+    color: #ff6b6b; font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; font-weight: 600;
+  ">Logout</button>
+</div>
 </body>
 </html>
+
+<div class="feedback-row">
+  <span class="feedback-label">Was this helpful?</span>
+  <button id="thumbsUp"   class="feedback-btn" onclick="sendFeedback('helpful')">👍</button>
+  <button id="thumbsDown" class="feedback-btn" onclick="sendFeedback('not_helpful')">👎</button>
+</div>

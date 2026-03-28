@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VAANI — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #020817; --card: #0d1425;
+      --accent: #00ff88; --accent2: #00b4ff;
+      --text: #f0f6ff; --muted: #6b8cba;
+      --border: #1e3a5f; --error: #ff6b6b;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,180,255,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none; z-index: 0;
+    }
+
+    .container {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 420px;
+    }
+
+    /* Logo */
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 52px; font-weight: 800;
+      text-align: center; margin-bottom: 6px;
+      background: linear-gradient(135deg, #00ff88, #00b4ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-sub {
+      text-align: center; color: var(--muted);
+      font-size: 13px; margin-bottom: 32px;
+    }
+
+    /* Card */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px; padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex; gap: 0;
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px; padding: 4px;
+      margin-bottom: 28px;
+    }
+
+    .tab {
+      flex: 1; padding: 10px;
+      border: none; background: transparent;
+      color: var(--muted); font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600; border-radius: 10px;
+      cursor: pointer; transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: linear-gradient(135deg, rgba(0,255,136,0.2), rgba(0,180,255,0.2));
+      color: var(--accent);
+      border: 1px solid rgba(0,255,136,0.3);
+    }
+
+    /* Form */
+    .form-group { margin-bottom: 16px; }
+
+    label {
+      display: block; font-size: 12px;
+      font-weight: 600; color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%; padding: 13px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text); font-size: 15px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none; transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,255,136,0.1);
+    }
+
+    input::placeholder { color: var(--muted); }
+
+    /* Submit Button */
+    .submit-btn {
+      width: 100%; padding: 14px;
+      border-radius: 14px; border: none;
+      background: linear-gradient(135deg, #00ff88, #00b4ff);
+      color: #020817; font-size: 15px;
+      font-weight: 800; font-family: 'DM Sans', sans-serif;
+      cursor: pointer; margin-top: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .submit-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 8px 28px rgba(0,255,136,0.3);
+    }
+
+    /* Messages */
+    .msg {
+      text-align: center; font-size: 13px;
+      padding: 10px; border-radius: 10px;
+      margin-top: 14px; min-height: 20px;
+    }
+
+    .msg.success {
+      background: rgba(0,255,136,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(0,255,136,0.25);
+    }
+
+    .msg.error {
+      background: rgba(255,107,107,0.1);
+      color: var(--error);
+      border: 1px solid rgba(255,107,107,0.25);
+    }
+
+    /* Hidden */
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="logo">VAANI.</div>
+  <p class="logo-sub">Voice Assistant for Government Services</p>
+
+  <div class="card">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" id="loginTab" onclick="showTab('login')">🔐 Login</button>
+      <button class="tab" id="registerTab" onclick="showTab('register')">📝 Register</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div id="loginForm">
+      <div class="form-group">
+        <label>📱 Phone Number</label>
+        <input type="tel" id="loginPhone" placeholder="Enter 10-digit number" maxlength="10"/>
+      </div>
+      <div class="form-group">
+        <label>🔒 Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter password"/>
+      </div>
+      <button class="submit-btn" onclick="doLogin()">Login →</button>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="registerForm" class="hidden">
+      <div class="form-group">
+        <label>👤 Full Name</label>
+        <input type="text" id="regName" placeholder="Enter your name"/>
+      </div>
+      <div class="form-group">
+        <label>📱 Phone Number</label>
+        <input type="tel" id="regPhone" placeholder="Enter 10-digit number" maxlength="10"/>
+      </div>
+      <div class="form-group">
+        <label>🔒 Password</label>
+        <input type="password" id="regPassword" placeholder="Create password"/>
+      </div>
+      <button class="submit-btn" onclick="doRegister()">Register →</button>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+
+<script>
+  const BACKEND = "http://127.0.0.1:5000";
+
+  function showTab(tab) {
+    document.getElementById("loginForm").classList.toggle("hidden", tab !== "login");
+    document.getElementById("registerForm").classList.toggle("hidden", tab !== "register");
+    document.getElementById("loginTab").classList.toggle("active", tab === "login");
+    document.getElementById("registerTab").classList.toggle("active", tab === "register");
+    document.getElementById("msg").innerText = "";
+    document.getElementById("msg").className = "msg";
+  }
+
+  function showMsg(text, type) {
+    const el = document.getElementById("msg");
+    el.innerText = text;
+    el.className = "msg " + type;
+  }
+
+  async function doLogin() {
+    const phone    = document.getElementById("loginPhone").value.trim();
+    const password = document.getElementById("loginPassword").value.trim();
+
+    if (!phone || !password) {
+      showMsg("⚠️ Enter phone and password!", "error"); return;
+    }
+
+    try {
+      const res  = await fetch(BACKEND + "/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, password })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        // Save to localStorage
+        localStorage.setItem("vaani_token", data.token);
+        localStorage.setItem("vaani_user",  JSON.stringify(data.user));
+        showMsg("✅ " + data.message, "success");
+        setTimeout(() => window.location.href = "index.html", 1000);
+      } else {
+        showMsg("❌ " + data.message, "error");
+      }
+    } catch {
+      showMsg("❌ Backend not connected!", "error");
+    }
+  }
+
+  async function doRegister() {
+    const name     = document.getElementById("regName").value.trim();
+    const phone    = document.getElementById("regPhone").value.trim();
+    const password = document.getElementById("regPassword").value.trim();
+
+    if (!name || !phone || !password) {
+      showMsg("⚠️ All fields required!", "error"); return;
+    }
+
+    try {
+      const res  = await fetch(BACKEND + "/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone, password })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        showMsg("✅ " + data.message, "success");
+        setTimeout(() => showTab("login"), 1500);
+      } else {
+        showMsg("❌ " + data.message, "error");
+      }
+    } catch {
+      showMsg("❌ Backend not connected!", "error");
+    }
+  }
+
+  // Enter key support
+  document.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      const isLogin = !document.getElementById("loginForm").classList.contains("hidden");
+      isLogin ? doLogin() : doRegister();
+    }
+  });
+
+  // Already logged in check
+  if (localStorage.getItem("vaani_token")) {
+    window.location.href = "index.html";
+  }
+</script>
+
+</body>
+</html>

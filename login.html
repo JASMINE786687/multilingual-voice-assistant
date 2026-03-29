@@ -1,451 +1,144 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>VAANI — Login</title>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAANI Login</title><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700&family=DM+Sans&display=swap" rel="stylesheet"><script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script><style>
+body{
+  font-family:'DM Sans';
+  background:#020817;
+  color:white;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
 
-  <!--
-    ✅ CORRECT Firebase CDN — compat version
-    This is different from what Firebase Console shows you.
-    The Console shows ES module syntax (import) which BREAKS in plain HTML.
-    This compat version works perfectly in plain HTML files.
-  -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+.box{
+  width:320px;
+  background:#0d1425;
+  padding:25px;
+  border-radius:15px;
+}
 
-  <style>
-    :root {
-      --bg: #020817; --card: #0d1425;
-      --accent: #00ff88; --accent2: #00b4ff;
-      --text: #f0f6ff; --muted: #6b8cba;
-      --border: #1e3a5f; --error: #ff6b6b;
-    }
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+.logo{
+  text-align:center;
+  font-size:32px;
+  font-family:'Syne';
+  margin-bottom:20px;
+}
 
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--bg); color: var(--text);
-      min-height: 100vh;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 20px;
-    }
+input{
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  border-radius:8px;
+  border:none;
+}
 
-    body::before {
-      content: ''; position: fixed; inset: 0;
-      background-image:
-        linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,180,255,0.03) 1px, transparent 1px);
-      background-size: 48px 48px;
-      pointer-events: none; z-index: 0;
-    }
+button{
+  width:100%;
+  margin-top:15px;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  background:linear-gradient(135deg,#00ff88,#00b4ff);
+  font-weight:bold;
+  cursor:pointer;
+}
 
-    .container { position: relative; z-index: 1; width: 100%; max-width: 420px; }
+.hidden{display:none;}
+.msg{margin-top:10px;font-size:13px;}
+</style></head><body><div class="box">
+<div class="logo">VAANI</div><div id="step1">
+<input id="name" placeholder="Enter name">
+<input id="phone" placeholder="Enter phone">
+<div id="recaptcha-container"></div>
+<button onclick="sendOTP()">Send OTP</button>
+<div id="msg1" class="msg"></div>
+</div><div id="step2" class="hidden">
+<p id="phoneDisplay"></p>
+<input id="otp" placeholder="Enter OTP">
+<button onclick="verifyOTP()">Verify</button>
+<button onclick="resendOTP()">Resend</button>
+<div id="msg2" class="msg"></div>
+</div></div><script>
+const firebaseConfig={
+apiKey:"AIzaSyA89l0ax8wB2J4UKXWcesntiTveueBsuDc",
+authDomain:"vaani-otp.firebaseapp.com",
+projectId:"vaani-otp",
+storageBucket:"vaani-otp.firebasestorage.app",
+messagingSenderId:"1030946884076",
+appId:"1:1030946884076:web:26a5efde02d30165f058c9"
+};
 
-    .logo {
-      font-family: 'Syne', sans-serif; font-size: 52px; font-weight: 800;
-      text-align: center; margin-bottom: 6px;
-      background: linear-gradient(135deg, #00ff88, #00b4ff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth();
 
-    .logo-sub {
-      text-align: center; color: var(--muted);
-      font-size: 13px; margin-bottom: 32px;
-    }
+let confirmationResult=null;
+let recaptchaVerifier=null;
+let recaptchaWidgetId=null;
 
-    .card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 24px; padding: 32px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-    }
+function msg(id,t){document.getElementById(id).innerText=t;}
 
-    /* ── Steps bar ── */
-    .steps-bar { display: flex; align-items: center; margin-bottom: 28px; }
-    .step-item {
-      flex: 1; text-align: center; font-size: 12px; font-weight: 600;
-      color: var(--muted); padding: 8px 4px; border-radius: 8px; transition: all 0.3s;
-    }
-    .step-item.active { color: var(--accent); background: rgba(0,255,136,0.08); }
-    .step-item.done   { color: var(--accent2); }
-    .step-divider     { width: 20px; height: 1px; background: var(--border); flex-shrink: 0; }
+async function sendOTP(){
+let phone=document.getElementById("phone").value;
+let name=document.getElementById("name").value;
 
-    /* ── Form ── */
-    .form-group { margin-bottom: 16px; }
+if(phone.length<10){msg("msg1","Enter valid number");return;}
 
-    label {
-      display: block; font-size: 12px; font-weight: 600; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
-    }
+let full="+91"+phone;
 
-    input[type="tel"], input[type="text"] {
-      width: 100%; padding: 13px 16px; border-radius: 12px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
-      color: var(--text); font-size: 15px;
-      font-family: 'DM Sans', sans-serif;
-      outline: none; transition: border-color 0.2s;
-    }
-    input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(0,255,136,0.1);
-    }
-    input::placeholder { color: var(--muted); }
+try{
+if(!recaptchaVerifier){
+recaptchaVerifier=new firebase.auth.RecaptchaVerifier("recaptcha-container",{size:"invisible"});
+recaptchaWidgetId=await recaptchaVerifier.render();
+}else{
+grecaptcha.reset(recaptchaWidgetId);
+}
 
-    /* ── OTP boxes ── */
-    .otp-row { display: flex; gap: 8px; }
-    .otp-box {
-      flex: 1; padding: 16px 0; border-radius: 12px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
-      color: var(--text); font-size: 22px; font-weight: 700;
-      text-align: center; font-family: 'Syne', sans-serif;
-      outline: none; transition: border-color 0.2s;
-    }
-    .otp-box:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(0,255,136,0.1);
-    }
+confirmationResult=await auth.signInWithPhoneNumber(full,recaptchaVerifier);
 
-    /* ── Buttons ── */
-    .submit-btn {
-      width: 100%; padding: 14px; border-radius: 14px; border: none;
-      background: linear-gradient(135deg, #00ff88, #00b4ff);
-      color: #020817; font-size: 15px; font-weight: 800;
-      font-family: 'DM Sans', sans-serif;
-      cursor: pointer; margin-top: 8px;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .submit-btn:hover { transform: scale(1.02); box-shadow: 0 8px 28px rgba(0,255,136,0.3); }
-    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+localStorage.setItem("name",name);
 
-    .resend-row { text-align: center; margin-top: 14px; font-size: 13px; color: var(--muted); }
-    .resend-btn {
-      background: none; border: none; color: var(--accent2);
-      font-size: 13px; font-family: 'DM Sans', sans-serif;
-      cursor: pointer; font-weight: 600; margin-left: 4px;
-    }
-    .resend-btn:disabled { color: var(--muted); cursor: default; }
+document.getElementById("phoneDisplay").innerText=full;
+document.getElementById("step1").classList.add("hidden");
+document.getElementById("step2").classList.remove("hidden");
 
-    .back-link {
-      display: block; text-align: center; color: var(--muted);
-      font-size: 13px; margin-top: 10px; cursor: pointer;
-      background: none; border: none; font-family: 'DM Sans', sans-serif;
-    }
-    .back-link:hover { color: var(--accent); }
+msg("msg1","OTP Sent");
 
-    .phone-display {
-      font-size: 13px; color: var(--muted); text-align: center;
-      margin-bottom: 18px; padding: 10px; border-radius: 10px;
-      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-    }
-    .phone-display strong { color: var(--text); }
+}catch(e){msg("msg1",e.message);}
+}
 
-    /* ── Messages ── */
-    .msg {
-      text-align: center; font-size: 13px; padding: 10px;
-      border-radius: 10px; margin-top: 14px; min-height: 20px;
-    }
-    .msg.success { background: rgba(0,255,136,0.1); color: var(--accent); border: 1px solid rgba(0,255,136,0.25); }
-    .msg.error   { background: rgba(255,107,107,0.1); color: var(--error); border: 1px solid rgba(255,107,107,0.25); }
+async function verifyOTP(){
+let code=document.getElementById("otp").value;
 
-    .hidden { display: none; }
-  </style>
-</head>
-<body>
+if(!confirmationResult){msg("msg2","Send OTP first");return;}
 
-<div class="container">
-  <div class="logo">VAANI.</div>
-  <p class="logo-sub">Voice Assistant for Government Services</p>
+try{
+let result=await confirmationResult.confirm(code);
+let user=result.user;
 
-  <div class="card">
+localStorage.setItem("vaani_token",user.uid);
+localStorage.setItem("vaani_user",JSON.stringify({
+name:localStorage.getItem("name"),
+phone:user.phoneNumber
+}));
 
-    <!-- Steps indicator -->
-    <div class="steps-bar">
-      <div class="step-item active" id="step1-label">📱 Enter Number</div>
-      <div class="step-divider"></div>
-      <div class="step-item" id="step2-label">🔢 Enter OTP</div>
-    </div>
+msg("msg2","Login success");
 
-    <!-- ── STEP 1 ── -->
-    <div id="step1">
-      <div class="form-group">
-        <label>👤 Your Name</label>
-        <input type="text" id="inputName" placeholder="Enter your name"/>
-      </div>
-      <div class="form-group">
-        <label>📱 Phone Number</label>
-        <input
-          type="tel" id="inputPhone"
-          placeholder="Enter 10-digit mobile number"
-          maxlength="10"
-          oninput="this.value=this.value.replace(/\D/g,'')"
-        />
-      </div>
+setTimeout(()=>{window.location.href="index.html";},1000);
 
-      <!-- Required by Firebase — invisible reCAPTCHA attaches here -->
-      <div id="recaptcha-container"></div>
+}catch(e){msg("msg2","Invalid OTP");}
+}
 
-      <button class="submit-btn" id="sendOtpBtn" onclick="sendOTP()">
-        Get OTP →
-      </button>
-      <div class="msg" id="msg1"></div>
-    </div>
+async function resendOTP(){
+let phone=document.getElementById("phoneDisplay").innerText;
 
-    <!-- ── STEP 2 ── -->
-    <div id="step2" class="hidden">
-      <div class="phone-display">
-        OTP sent to <strong id="phoneDisplay"></strong>
-      </div>
-      <div class="form-group">
-        <label>🔢 Enter 6-digit OTP</label>
-        <div class="otp-row">
-          <input class="otp-box" maxlength="1" type="tel" oninput="otpInput(this,0)" onkeydown="otpBack(event,0)"/>
-          <input class="otp-box" maxlength="1" type="tel" oninput="otpInput(this,1)" onkeydown="otpBack(event,1)"/>
-          <input class="otp-box" maxlength="1" type="tel" oninput="otpInput(this,2)" onkeydown="otpBack(event,2)"/>
-          <input class="otp-box" maxlength="1" type="tel" oninput="otpInput(this,3)" onkeydown="otpBack(event,3)"/>
-          <input class="otp-box" maxlength="1" type="tel" oninput="otpInput(this,4)" onkeydown="otpBack(event,4)"/>
-          <input class="otp-box" maxlength="1" type="tel" oninput="otpInput(this,5)" onkeydown="otpBack(event,5)"/>
-        </div>
-      </div>
-      <button class="submit-btn" id="verifyBtn" onclick="verifyOTP()">
-        Verify & Login →
-      </button>
-      <div class="resend-row">
-        Didn't receive?
-        <button class="resend-btn" id="resendBtn" disabled onclick="resendOTP()">
-          Resend in <span id="countdown">30</span>s
-        </button>
-      </div>
-      <button class="back-link" onclick="goBack()">← Change number</button>
-      <div class="msg" id="msg2"></div>
-    </div>
-
-  </div>
-</div>
-
-<script>
-  // ══════════════════════════════════════
-  // FIREBASE CONFIG — your project values
-  // ══════════════════════════════════════
-  const firebaseConfig = {
-    apiKey:            "AIzaSyA89l0ax8wB2J4UKXWcesntiTveueBsuDc",
-    authDomain:        "vaani-otp.firebaseapp.com",
-    projectId:         "vaani-otp",
-    storageBucket:     "vaani-otp.firebasestorage.app",
-    messagingSenderId: "1030946884076",
-    appId:             "1:1030946884076:web:26a5efde02d30165f058c9"
-  };
-
-  // ✅ This works in plain HTML — no import/require needed
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-
-  let confirmationResult = null;
-  let recaptchaVerifier  = null;
-  let countdownTimer     = null;
-
-  // Already logged in → go to app
-  if (localStorage.getItem("vaani_token")) {
-    window.location.href = "index.html";
-  }
-
-  // ── Helpers ──
-  function showMsg(id, text, type) {
-    const el = document.getElementById(id);
-    el.innerText = text;
-    el.className = "msg " + (type || "");
-  }
-
-  // ── OTP box auto-advance ──
-  function otpInput(el, idx) {
-    el.value = el.value.replace(/\D/g,"").slice(-1);
-    const boxes = document.querySelectorAll(".otp-box");
-    if (el.value && idx < 5) boxes[idx+1].focus();
-    if (el.value && idx === 5) verifyOTP();
-  }
-
-  // ── OTP box backspace ──
-  function otpBack(e, idx) {
-    if (e.key === "Backspace") {
-      const boxes = document.querySelectorAll(".otp-box");
-      if (!boxes[idx].value && idx > 0) boxes[idx-1].focus();
-    }
-  }
-
-  // ── Paste full OTP ──
-  document.addEventListener("paste", function(e) {
-    const pasted = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g,"");
-    if (pasted.length === 6 && !document.getElementById("step2").classList.contains("hidden")) {
-      const boxes = document.querySelectorAll(".otp-box");
-      pasted.split("").forEach((ch, i) => { if (boxes[i]) boxes[i].value = ch; });
-      boxes[5].focus();
-      setTimeout(verifyOTP, 200);
-    }
-  });
-
-  // ══════════════════════════════════════
-  // SEND OTP
-  // ══════════════════════════════════════
-  async function sendOTP() {
-    const phone = document.getElementById("inputPhone").value.trim();
-    const name  = document.getElementById("inputName").value.trim();
-
-    if (!phone || phone.length < 10) {
-      showMsg("msg1", "⚠️ Enter a valid 10-digit number", "error"); return;
-    }
-
-    const btn = document.getElementById("sendOtpBtn");
-    btn.disabled = true; btn.innerText = "Sending...";
-    showMsg("msg1", "", "");
-
-    const fullPhone = "+91" + phone;
-
-    try {
-      // Clear old reCAPTCHA if resending
-      if (recaptchaVerifier) {
-        recaptchaVerifier.clear();
-        document.getElementById("recaptcha-container").innerHTML = "";
-      }
-
-      recaptchaVerifier = new firebase.auth.RecaptchaVerifier(
-        "recaptcha-container", { size: "invisible" }
-      );
-
-      confirmationResult = await auth.signInWithPhoneNumber(fullPhone, recaptchaVerifier);
-
-      if (name) localStorage.setItem("vaani_pending_name", name);
-
-      document.getElementById("phoneDisplay").innerText = fullPhone;
-      document.getElementById("step1").classList.add("hidden");
-      document.getElementById("step2").classList.remove("hidden");
-      document.getElementById("step1-label").classList.remove("active");
-      document.getElementById("step1-label").classList.add("done");
-      document.getElementById("step2-label").classList.add("active");
-      document.querySelectorAll(".otp-box")[0].focus();
-      startCountdown();
-
-    } catch (err) {
-      console.error(err);
-      const ERRS = {
-        "auth/invalid-phone-number":  "❌ Invalid number. Use 10 digits without +91.",
-        "auth/too-many-requests":     "❌ Too many attempts. Wait and retry.",
-        "auth/captcha-check-failed":  "❌ reCAPTCHA failed. Refresh and retry.",
-        "auth/operation-not-allowed": "❌ Phone auth not enabled in Firebase console."
-      };
-      showMsg("msg1", ERRS[err.code] || "❌ " + err.message, "error");
-    }
-
-    btn.disabled = false; btn.innerText = "Get OTP →";
-  }
-
-  // ══════════════════════════════════════
-  // VERIFY OTP
-  // ══════════════════════════════════════
-  async function verifyOTP() {
-    const otp = Array.from(document.querySelectorAll(".otp-box")).map(b => b.value).join("");
-
-    if (otp.length < 6) { showMsg("msg2", "⚠️ Enter all 6 digits", "error"); return; }
-    if (!confirmationResult) { showMsg("msg2", "❌ Session expired. Go back and resend.", "error"); return; }
-
-    const btn = document.getElementById("verifyBtn");
-    btn.disabled = true; btn.innerText = "Verifying...";
-
-    try {
-      const result = await confirmationResult.confirm(otp);
-      const user   = result.user;
-      const name   = localStorage.getItem("vaani_pending_name") || "User";
-
-      localStorage.removeItem("vaani_pending_name");
-      localStorage.setItem("vaani_token", user.uid);
-      localStorage.setItem("vaani_user", JSON.stringify({ name, phone: user.phoneNumber }));
-
-      showMsg("msg2", "✅ Login successful!", "success");
-      setTimeout(() => window.location.href = "index.html", 900);
-
-    } catch (err) {
-      console.error(err);
-      const ERRS = {
-        "auth/invalid-verification-code": "❌ Wrong OTP. Try again.",
-        "auth/code-expired":              "❌ OTP expired. Click Resend.",
-        "auth/session-expired":           "❌ Session expired. Go back and resend."
-      };
-      showMsg("msg2", ERRS[err.code] || "❌ " + err.message, "error");
-      document.querySelectorAll(".otp-box").forEach(b => {
-        b.value = "";
-        b.style.borderColor = "var(--error)";
-        setTimeout(() => b.style.borderColor = "", 1000);
-      });
-      document.querySelectorAll(".otp-box")[0].focus();
-    }
-
-    btn.disabled = false; btn.innerText = "Verify & Login →";
-  }
-
-  // ══════════════════════════════════════
-  // RESEND OTP
-  // ══════════════════════════════════════
-  async function resendOTP() {
-    const phone = document.getElementById("phoneDisplay").innerText;
-    document.getElementById("resendBtn").innerHTML = "Resend in <span id='countdown'>30</span>s";
-    document.getElementById("resendBtn").disabled = true;
-    startCountdown();
-    try {
-      if (recaptchaVerifier) {
-        recaptchaVerifier.clear();
-        document.getElementById("recaptcha-container").innerHTML = "";
-      }
-      recaptchaVerifier = new firebase.auth.RecaptchaVerifier(
-        "recaptcha-container", { size: "invisible" }
-      );
-      confirmationResult = await auth.signInWithPhoneNumber(phone, recaptchaVerifier);
-      showMsg("msg2", "✅ New OTP sent!", "success");
-    } catch (err) {
-      showMsg("msg2", "❌ Failed to resend: " + err.message, "error");
-    }
-  }
-
-  // ── Countdown timer ──
-  function startCountdown() {
-    let secs = 30;
-    clearInterval(countdownTimer);
-    countdownTimer = setInterval(() => {
-      secs--;
-      const el = document.getElementById("countdown");
-      if (el) el.innerText = secs;
-      if (secs <= 0) {
-        clearInterval(countdownTimer);
-        const btn = document.getElementById("resendBtn");
-        btn.disabled = false;
-        btn.innerHTML = "Resend OTP";
-      }
-    }, 1000);
-  }
-
-  // ── Go back to step 1 ──
-  function goBack() {
-    clearInterval(countdownTimer);
-    confirmationResult = null;
-    document.getElementById("step2").classList.add("hidden");
-    document.getElementById("step1").classList.remove("hidden");
-    document.getElementById("step1-label").classList.add("active");
-    document.getElementById("step1-label").classList.remove("done");
-    document.getElementById("step2-label").classList.remove("active");
-    document.querySelectorAll(".otp-box").forEach(b => b.value = "");
-    showMsg("msg1", "", ""); showMsg("msg2", "", "");
-  }
-
-  // ── Enter key ──
-  document.addEventListener("keydown", e => {
-    if (e.key !== "Enter") return;
-    if (!document.getElementById("step1").classList.contains("hidden")) sendOTP();
-    else verifyOTP();
-  });
-</script>
-
-</body>
+try{
+grecaptcha.reset(recaptchaWidgetId);
+confirmationResult=await auth.signInWithPhoneNumber(phone,recaptchaVerifier);
+msg("msg2","OTP resent");
+}catch(e){msg("msg2",e.message);}
+}
+</script></body>
 </html>

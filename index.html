@@ -3,17 +3,15 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>VAANI - Voice Assistant</title>
+  <title>VAANI - Voice Assistant for Government Services</title>
   <link rel="stylesheet" href="style.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 </head>
 <body>
 
-  <!-- Background Effects -->
   <div class="bg-grid"></div>
   <div class="bg-glow"></div>
 
-  <!-- Top Nav Bar -->
   <nav class="navbar">
     <div class="nav-logo">VAANI<span class="dot">.</span></div>
     <div class="nav-status">
@@ -23,13 +21,6 @@
     <div class="nav-badge">🏆 Hackathon 2025</div>
   </nav>
 
-  <!-- User greeting -->
-  <div id="userGreeting" style="position:fixed;top:14px;right:100px;z-index:101;display:flex;align-items:center;gap:8px;">
-    <span id="userName" style="font-size:13px;color:#00ff88;font-weight:600;"></span>
-    <button onclick="doLogout()" style="padding:5px 12px;border-radius:100px;border:1px solid rgba(255,107,107,0.4);background:rgba(255,107,107,0.1);color:#ff6b6b;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:600;">Logout</button>
-  </div>
-
-  <!-- Hero Header -->
   <header>
     <div class="hero-tag">🇮🇳 Made for Every Indian Citizen</div>
     <h1 class="logo">VAANI<span class="dot">.</span></h1>
@@ -44,25 +35,14 @@
     </div>
   </header>
 
-  <!-- Main Content -->
   <main>
 
-    <!-- Main Voice Card -->
     <div class="card">
-      <div class="card-label">
-        <span class="label-dot"></span>
-        Ask your question
-      </div>
+      <div class="card-label"><span class="label-dot"></span>Ask your question</div>
 
-      <!-- Language Selector — built dynamically by script.js -->
-      <div class="lang-row">
-        <span class="lang-label">🌐 Language</span>
-      </div>
-      <div class="lang-pills" id="langPillsRow">
-        <!-- Pills injected by buildLanguagePills() in script.js -->
-      </div>
+      <div class="lang-row"><span class="lang-label">🌐 Language</span></div>
+      <div class="lang-pills" id="langPillsRow"></div>
 
-      <!-- Voice Section -->
       <div class="voice-section">
         <div class="voice-bars" id="voiceBars">
           <div class="bar"></div><div class="bar"></div><div class="bar"></div>
@@ -78,40 +58,25 @@
         <p class="status" id="status">Tap mic to speak</p>
       </div>
 
-      <!-- Divider -->
-      <div class="divider">
-        <span class="divider-text">or type below</span>
-      </div>
+      <div class="divider"><span class="divider-text">or type below</span></div>
 
-      <!-- Text Input -->
       <div class="input-row">
-        <input
-          class="text-input"
-          id="textInput"
+        <input class="text-input" id="textInput"
           placeholder="Type: ration / pension / aadhaar / voter / health / pan..."
-          onkeydown="if(event.key==='Enter') sendText()"
-        />
+          onkeydown="if(event.key==='Enter') sendText()"/>
         <button class="send-btn" onclick="sendText()">Send →</button>
       </div>
-
-      <!-- Error -->
       <div class="error-box" id="errorBox"></div>
     </div>
 
-    <!-- Quick Access — 12 service chips (built by script.js) -->
     <div class="quick-section">
-      <p class="quick-label">⚡ Quick Access — All Government Services</p>
-      <div class="services-row" id="servicesGrid">
-        <!-- Chips injected by populateServicesGrid() in script.js -->
-      </div>
+      <p class="quick-label">⚡ Quick Access — All 12 Government Services</p>
+      <div class="services-row" id="servicesGrid"></div>
     </div>
 
-    <!-- Result Card -->
     <div class="result-card" id="resultBox" style="display:none;">
       <div class="result-header">
-        <div class="result-icon-wrap">
-          <span class="result-icon">📋</span>
-        </div>
+        <div class="result-icon-wrap"><span class="result-icon">📋</span></div>
         <div>
           <p class="result-tag">Service Guide</p>
           <h3 id="serviceName"></h3>
@@ -120,7 +85,7 @@
       <ol class="steps-list" id="stepsList"></ol>
       <div class="result-actions">
         <button class="speak-btn" onclick="speakResult()">🔊 Read Aloud</button>
-        <a id="govLink" href="#" target="_blank" class="link-btn" style="display:none">🌐 Official Website →</a>
+        <a id="govLink" href="#" target="_blank" class="link-btn" style="display:none;">🌐 Official Website →</a>
       </div>
       <div class="feedback-row">
         <span class="feedback-label">Was this helpful?</span>
@@ -129,7 +94,6 @@
       </div>
     </div>
 
-    <!-- How It Works -->
     <div class="how-section">
       <p class="how-title">⚙️ How it works</p>
       <div class="how-steps">
@@ -143,7 +107,6 @@
       </div>
     </div>
 
-    <!-- Impact -->
     <div class="how-section">
       <p class="how-title">🌍 Impact</p>
       <div class="how-steps">
@@ -156,7 +119,6 @@
 
   </main>
 
-  <!-- Footer -->
   <footer>
     <div class="footer-logo">VAANI<span class="dot">.</span></div>
     <p class="footer-text">Built for the people · Powered by AI · Made in India 🇮🇳</p>

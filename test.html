@@ -1,21 +1,43 @@
 <!DOCTYPE html>
 <html>
-<body>
+<body style="font-family:sans-serif; padding:20px;">
 <h2>VAANI Translation Test</h2>
+
 <input id="txt" placeholder="Type: ration card" style="width:300px;padding:8px"/>
-<button onclick="test()">Translate to Tamil</button>
-<pre id="result"></pre>
+
+<select id="lang" style="padding:8px; margin-left:8px;">
+  <option value="ta">Tamil (தமிழ்)</option>
+  <option value="hi">Hindi (हिन्दी)</option>
+  <option value="te">Telugu (తెలుగు)</option>
+  <option value="kn">Kannada (ಕನ್ನಡ)</option>
+  <option value="ml">Malayalam (മലയാളം)</option>
+  <option value="bn">Bengali (বাংলা)</option>
+  <option value="mr">Marathi (मराठी)</option>
+</select>
+
+<button onclick="test()" style="padding:8px 16px; margin-left:8px;">Translate</button>
+
+<pre id="result" style="margin-top:16px; background:#f4f4f4; padding:12px; border-radius:8px;"></pre>
+
 <script>
-async function test() {
-  const text = document.getElementById('txt').value;
-  const res = await fetch('http://127.0.0.1:5000/translate', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({text: text, target_lang: 'ta'})
-  });
-  const data = await res.json();
-  document.getElementById('result').innerText = JSON.stringify(data, null, 2);
-}
+  const BACKEND = "https://multilingual-voice-assistant-870k.onrender.com";
+
+  async function test() {
+    const text = document.getElementById('txt').value;
+    const lang = document.getElementById('lang').value;
+    document.getElementById('result').innerText = "Translating...";
+    try {
+      const res = await fetch(BACKEND + '/translate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text, target_lang: lang})
+      });
+      const data = await res.json();
+      document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+    } catch (e) {
+      document.getElementById('result').innerText = "❌ Backend not reachable: " + e.message;
+    }
+  }
 </script>
 </body>
 </html>

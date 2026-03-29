@@ -94,11 +94,12 @@ header {
   letter-spacing: -4px;
   line-height: 1;
   background: linear-gradient(135deg, #00ff88 0%, #00b4ff 50%, #a855f7 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+  
+  -webkit-background-clip: text;  /* for Chrome/Safari */
+  background-clip: text;          /* standard version */
 
+  -webkit-text-fill-color: transparent;
+}
 .dot {
   background: linear-gradient(135deg, #ff6f3c, #a855f7);
   -webkit-background-clip: text;
@@ -472,22 +473,22 @@ main {
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
 }
 
-.service-chip:nth-child(1):hover {
-  border-color: #00ff88;
+.service-chip.chip-green:hover {
+  border-color: #00ff88 !important;
   color: #00ff88;
   box-shadow: 0 0 20px rgba(0,255,136,0.2);
   transform: translateY(-3px);
 }
 
-.service-chip:nth-child(2):hover {
-  border-color: #00b4ff;
+.service-chip.chip-blue:hover {
+  border-color: #00b4ff !important;
   color: #00b4ff;
   box-shadow: 0 0 20px rgba(0,180,255,0.2);
   transform: translateY(-3px);
 }
 
-.service-chip:nth-child(3):hover {
-  border-color: #a855f7;
+.service-chip.chip-purple:hover {
+  border-color: #a855f7 !important;
   color: #a855f7;
   box-shadow: 0 0 20px rgba(168,85,247,0.2);
   transform: translateY(-3px);
@@ -515,6 +516,8 @@ footer {
   .card { padding: 24px 18px; }
   .result-card { padding: 24px 18px; }
   .lang-row { flex-direction: column; align-items: flex-start; }
+  .lang-pill { padding: 5px 11px; font-size: 12px; }
+  .lang-pills { gap: 6px; }
 }
 /* ══ NAVBAR ══ */
 .navbar {
@@ -846,9 +849,9 @@ header { padding-top: 90px !important; }
   border-radius: 28px;
   padding: 32px;
   box-shadow:
-    0 0 0 1px rgba(54, 128, 93, 0.05),
-    0 20px 60px rgba(160, 52, 52, 0.6),
-    inset 0 1px 0 rgba(12, 51, 209, 0.06);
+    0 0 0 1px rgba(0,255,136,0.05),
+    0 20px 60px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
 .feedback-row {
   display: flex;
@@ -875,4 +878,4 @@ header { padding-top: 90px !important; }
   transition: all 0.2s;
 }
 
-.feedback-btn:hover { transform: scale(1.15); }
+.feedback-btn:hover { transform: scale(1.15); } 

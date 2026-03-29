@@ -37,7 +37,7 @@ def send_otp_sms(phone, otp):
         url = "https://www.fast2sms.com/dev/bulkV2"
 
         payload = {
-            "route": "q",  # transactional route
+            "route": "v3",  # transactional route
             "message": f"Your VAANI OTP is {otp}",
             "language": "english",
             "numbers": phone.replace("+91", "")

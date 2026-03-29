@@ -37,9 +37,10 @@ def send_otp_sms(phone, otp):
         url = "https://www.fast2sms.com/dev/bulkV2"
 
         payload = {
-            "route": "v3",  # transactional route
-            "message": f"Your VAANI OTP is {otp}",
+            "sender_id": "FSTSMS",
+            "message": f"Your OTP is {otp}",
             "language": "english",
+            "route": "q",   # ✅ FREE ROUTE (IMPORTANT)
             "numbers": phone.replace("+91", "")
         }
 
@@ -50,15 +51,16 @@ def send_otp_sms(phone, otp):
 
         response = requests.post(url, json=payload, headers=headers)
 
+        print("FAST2SMS RESPONSE:", response.text)
+
         if response.status_code == 200:
             return True, "OTP sent successfully"
         else:
-            return False, "Failed to send SMS"
+            return False, response.text
 
     except Exception as e:
-        print("Fast2SMS Error:", e)
+        print("SMS ERROR:", e)
         return False, str(e)
-
 # ══════════════════════════════════════
 # TEST
 # ══════════════════════════════════════

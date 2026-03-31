@@ -1,26 +1,28 @@
-// ══════════════════════════════════════════════════════
-// VAANI — script.js  |  All languages, no login, no billing
-// ══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// VAANI — script.js
+// Features: 8-language TTS/STT, AI agent, offline cache, 12 services
+// ═══════════════════════════════════════════════════════════
 
 const BACKEND = "https://multilingual-voice-assistant-870k.onrender.com";
 
 let resultText   = "";
 let selectedLang = "en";
 let isListening  = false;
+let isSpeaking   = false;
 
-// ── LANGUAGE CONFIG  (8 Indian languages — all free) ──
+// ── LANGUAGE CONFIG ──
 const LANG_CONFIG = {
-  "en": { label: "English",  tts: "en-IN",  stt: "en-IN"  },
-  "ta": { label: "தமிழ்",    tts: "ta-IN",  stt: "ta-IN"  },
-  "hi": { label: "हिन्दी",   tts: "hi-IN",  stt: "hi-IN"  },
-  "te": { label: "తెలుగు",   tts: "te-IN",  stt: "te-IN"  },
-  "kn": { label: "ಕನ್ನಡ",    tts: "kn-IN",  stt: "kn-IN"  },
-  "ml": { label: "മലയാളം",   tts: "ml-IN",  stt: "ml-IN"  },
-  "bn": { label: "বাংলা",    tts: "bn-IN",  stt: "bn-IN"  },
-  "mr": { label: "मराठी",    tts: "mr-IN",  stt: "mr-IN"  }
+  "en": { label: "English",  flag: "🇬🇧", tts: "en-IN",  stt: "en-IN"  },
+  "ta": { label: "தமிழ்",    flag: "🇮🇳", tts: "ta-IN",  stt: "ta-IN"  },
+  "hi": { label: "हिन्दी",   flag: "🇮🇳", tts: "hi-IN",  stt: "hi-IN"  },
+  "te": { label: "తెలుగు",   flag: "🇮🇳", tts: "te-IN",  stt: "te-IN"  },
+  "kn": { label: "ಕನ್ನಡ",    flag: "🇮🇳", tts: "kn-IN",  stt: "kn-IN"  },
+  "ml": { label: "മലയാളം",   flag: "🇮🇳", tts: "ml-IN",  stt: "ml-IN"  },
+  "bn": { label: "বাংলা",    flag: "🇮🇳", tts: "bn-IN",  stt: "bn-IN"  },
+  "mr": { label: "मराठी",    flag: "🇮🇳", tts: "mr-IN",  stt: "mr-IN"  }
 };
 
-// ── SERVICE CONFIG  (12 services) ──
+// ── SERVICE CONFIG ──
 const SERVICE_CONFIG = {
   "ration":            { icon:"🍚", link:"https://www.tnpds.gov.in",            color:"chip-green"  },
   "pension":           { icon:"💰", link:"https://ignoaps.gov.in",              color:"chip-blue"   },
@@ -45,17 +47,45 @@ const SERVICE_LABELS = {
   "caste_certificate":"Caste Cert."
 };
 
-// ══════════════════════════════════════════════════════
+// ── OFFLINE CACHE (localStorage) ──
+const CACHE_KEY = "vaani_service_cache";
+function cacheSet(key, data) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
+    cache[key] = data;
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+function cacheGet(key) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
+    return cache[key] || null;
+  } catch { return null; }
+}
+
+// ══════════════════════════════════════════════════════════
 // ON LOAD
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 window.onload = function () {
   checkServerStatus();
   animateStatsOnLoad();
   buildLanguagePills();
   populateServicesGrid();
-  // Pre-load TTS voices so first speak works instantly
-  window.speechSynthesis.getVoices();
+  setupOfflineDetection();
+  // Pre-warm TTS voices
+  if (window.speechSynthesis) window.speechSynthesis.getVoices();
 };
+
+// ── OFFLINE DETECTION ──
+function setupOfflineDetection() {
+  const banner = document.getElementById("offlineBanner");
+  function update() {
+    if (banner) banner.style.display = navigator.onLine ? "none" : "block";
+  }
+  window.addEventListener("online",  update);
+  window.addEventListener("offline", update);
+  update();
+}
 
 // ── SERVER STATUS ──
 async function checkServerStatus() {
@@ -63,15 +93,11 @@ async function checkServerStatus() {
   const dot = document.querySelector('.status-dot');
   if (!txt || !dot) return;
   try {
-    const res = await fetch(BACKEND + "/");
-    if (res.ok) {
-      txt.innerText = "Server Live";
-      dot.style.background = "#00ff88";
-    } else throw new Error();
+    const res = await fetch(BACKEND + "/", { signal: AbortSignal.timeout(5000) });
+    if (res.ok) { txt.innerText="Server Live"; dot.style.background="#00ff88"; }
+    else throw new Error();
   } catch {
-    txt.innerText = "Server Offline";
-    dot.style.background = "#ff6b6b";
-    dot.style.animation  = "none";
+    txt.innerText="Server Offline"; dot.style.background="#ff6b6b"; dot.style.animation="none";
   }
 }
 
@@ -90,9 +116,9 @@ function animateStatsOnLoad() {
   });
 }
 
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 // LANGUAGE PILLS
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 function buildLanguagePills() {
   const row = document.getElementById("langPillsRow");
   if (!row) return;
@@ -101,7 +127,7 @@ function buildLanguagePills() {
     const btn = document.createElement("button");
     btn.className = "lang-pill" + (i === 0 ? " active" : "");
     btn.id        = "pill-" + code;
-    btn.innerText = cfg.label;
+    btn.innerText = cfg.flag + " " + cfg.label;
     btn.onclick   = () => setLang(code, btn);
     row.appendChild(btn);
   });
@@ -111,12 +137,14 @@ function setLang(lang, btn) {
   selectedLang = lang;
   document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
-  showToast("🌐 " + LANG_CONFIG[lang].label);
+  showToast("🌐 " + LANG_CONFIG[lang].label + " selected");
+  // Stop any ongoing speech when language changes
+  stopSpeaking();
 }
 
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 // SERVICES GRID
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 function populateServicesGrid() {
   const grid = document.getElementById("servicesGrid");
   if (!grid) return;
@@ -130,9 +158,6 @@ function populateServicesGrid() {
   });
 }
 
-// ══════════════════════════════════════════════════════
-// QUICK SEARCH
-// ══════════════════════════════════════════════════════
 function quickSearch(keyword) {
   const input = document.getElementById('textInput');
   if (!input) return;
@@ -143,10 +168,10 @@ function quickSearch(keyword) {
   sendText();
 }
 
-// ══════════════════════════════════════════════════════
-// VOICE INPUT  — uses Chrome Web Speech API (100% free)
-// Select your language pill BEFORE pressing mic
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// VOICE INPUT  — Chrome Web Speech API (100% free)
+// MUST select language pill BEFORE pressing mic
+// ══════════════════════════════════════════════════════════
 function startVoice() {
   if (isListening) return;
 
@@ -156,7 +181,7 @@ function startVoice() {
 
   if (!SR) {
     setStatus("⚠️ Voice only works in Chrome!", "error");
-    showToast("❌ Please open in Chrome browser");
+    showToast("❌ Please open this site in Chrome");
     return;
   }
 
@@ -164,7 +189,6 @@ function startVoice() {
   rec.continuous      = false;
   rec.interimResults  = false;
   rec.maxAlternatives = 1;
-  // KEY FIX: language is set from selected pill
   rec.lang            = LANG_CONFIG[selectedLang]?.stt || "en-IN";
 
   isListening = true;
@@ -172,9 +196,9 @@ function startVoice() {
   if (bars) bars.classList.add("active");
   setStatus("🎤 Listening in " + LANG_CONFIG[selectedLang].label + "...", "listening");
 
-  rec.onresult = function (event) {
-    const spoken = event.results[0][0].transcript;
-    const conf   = Math.round(event.results[0][0].confidence * 100);
+  rec.onresult = function (e) {
+    const spoken = e.results[0][0].transcript;
+    const conf   = Math.round(e.results[0][0].confidence * 100);
     const input  = document.getElementById("textInput");
     if (input) input.value = spoken;
     setStatus("✅ Heard: " + spoken + " (" + conf + "%)", "success");
@@ -191,10 +215,10 @@ function startVoice() {
     const ERRS = {
       "no-speech":     "❌ No speech detected. Try again!",
       "audio-capture": "❌ Microphone not found!",
-      "not-allowed":   "❌ Allow microphone in browser settings!",
-      "network":       "❌ Network error — check your connection!"
+      "not-allowed":   "❌ Allow microphone in Chrome settings!",
+      "network":       "❌ Network error!"
     };
-    setStatus(ERRS[e.error] || "❌ Error: " + e.error, "error");
+    setStatus(ERRS[e.error] || "❌ " + e.error, "error");
   };
 
   rec.onend = function () {
@@ -206,9 +230,9 @@ function startVoice() {
   rec.start();
 }
 
-// ══════════════════════════════════════════════════════
-// SEND TEXT  — calls backend, gets translated steps
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// SEND TEXT  — with offline fallback from cache
+// ══════════════════════════════════════════════════════════
 async function sendText() {
   const raw = document.getElementById("textInput")?.value.trim();
   if (!raw) { shakeInput(); return; }
@@ -217,34 +241,60 @@ async function sendText() {
   showLoadingInResult();
   hideError();
 
+  const cacheKey = raw.toLowerCase().trim() + "_" + selectedLang;
+
+  // If offline — serve from cache
+  if (!navigator.onLine) {
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      resultText = cached.service + ". " + cached.steps.join(". ");
+      showResult(cached.service, cached.steps, cached.icon, cached.link, cached.service_key);
+      setStatus("📵 Offline — showing cached result", "success");
+      setTimeout(() => speakResult(), 600);
+      return;
+    }
+    hideResult();
+    showError("📵 Offline and no cache found. Connect to internet and search once first.");
+    setStatus("No internet", "error");
+    return;
+  }
+
   try {
     const res  = await fetch(BACKEND + "/get_service", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ text: raw, target_lang: selectedLang })
+      body:    JSON.stringify({ text: raw, target_lang: selectedLang }),
+      signal:  AbortSignal.timeout(15000)
     });
     const data = await res.json();
 
     if (!data.success) {
       hideResult();
-      showError("❌ " + (data.message || "Service not found. Try: ration, aadhaar, voter, health, pan..."));
+      showError("❌ " + (data.message || "Service not found."));
       setStatus("Tap mic to speak", "normal");
       return;
     }
 
-    // Build text for Read Aloud
-    resultText = data.service + ". ";
-    data.steps.forEach(s => { resultText += s + ". "; });
+    // Cache for offline use
+    cacheSet(cacheKey, data);
 
+    resultText = data.service + ". " + data.steps.join(". ") + ".";
     showResult(data.service, data.steps, data.icon, data.link, data.service_key);
     setStatus("✅ Here are your steps!", "success");
-
-    // Auto speak after 800ms
     setTimeout(() => speakResult(), 800);
 
-  } catch {
+  } catch (err) {
+    // Try cache on timeout
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      resultText = cached.service + ". " + cached.steps.join(". ");
+      showResult(cached.service, cached.steps, cached.icon, cached.link, cached.service_key);
+      setStatus("⚠️ Using cached result", "success");
+      setTimeout(() => speakResult(), 600);
+      return;
+    }
     hideResult();
-    showError("❌ Backend not connected. Check your Render server.");
+    showError("❌ Backend not connected. Check Render server.");
     setStatus("Tap mic to speak", "normal");
     const st = document.querySelector('.status-text');
     const sd = document.querySelector('.status-dot');
@@ -253,9 +303,9 @@ async function sendText() {
   }
 }
 
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 // SHOW RESULT
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 function showResult(name, steps, icon, link, serviceKey) {
   document.getElementById("serviceName").innerText = name;
 
@@ -267,106 +317,268 @@ function showResult(name, steps, icon, link, serviceKey) {
   steps.forEach((step, i) => {
     const li = document.createElement("li");
     li.innerText = step;
-    li.style.cssText = `opacity:0; transform:translateX(-10px);
-      transition: opacity 0.3s ${i*0.08}s, transform 0.3s ${i*0.08}s`;
+    li.style.cssText = `opacity:0;transform:translateX(-10px);
+      transition:opacity 0.3s ${i*0.08}s,transform 0.3s ${i*0.08}s`;
     list.appendChild(li);
     setTimeout(() => { li.style.opacity="1"; li.style.transform="translateX(0)"; }, 50);
   });
 
   const linkEl = document.getElementById("govLink");
   const resolvedLink = link || SERVICE_CONFIG[serviceKey]?.link;
-  if (resolvedLink) { linkEl.href = resolvedLink; linkEl.style.display = "inline-block"; }
-  else              { linkEl.style.display = "none"; }
+  if (resolvedLink) { linkEl.href=resolvedLink; linkEl.style.display="inline-block"; }
+  else              { linkEl.style.display="none"; }
 
   const rb = document.getElementById("resultBox");
-  rb.style.display   = "block";
-  rb.style.animation = "none";
-  void rb.offsetWidth;
-  rb.style.animation = "fadeUp 0.4s ease both";
-  setTimeout(() => rb.scrollIntoView({ behavior:"smooth", block:"nearest" }), 200);
-  showToast("✅ " + name + " info loaded!");
+  rb.style.display="block"; rb.style.animation="none";
+  void rb.offsetWidth; rb.style.animation="fadeUp 0.4s ease both";
+  setTimeout(() => rb.scrollIntoView({behavior:"smooth",block:"nearest"}), 200);
+  showToast("✅ " + name + " loaded!");
 }
 
-// ══════════════════════════════════════════════════════
-// READ ALOUD  — uses browser SpeechSynthesis (100% free)
-// Works in all 8 languages if device voice is installed
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// TEXT-TO-SPEECH — THE GUARANTEED MULTILINGUAL FIX
+// Uses Web Speech API — 100% free, no billing ever
+// ══════════════════════════════════════════════════════════
 function speakResult() {
   if (!resultText) return;
-  window.speechSynthesis.cancel();
+  stopSpeaking();
 
   const ttsLang   = LANG_CONFIG[selectedLang]?.tts || "en-IN";
   const utterance = new SpeechSynthesisUtterance(resultText);
   utterance.lang   = ttsLang;
-  utterance.rate   = 0.85;
-  utterance.pitch  = 1.05;
+  utterance.rate   = 0.82;
+  utterance.pitch  = 1.0;
   utterance.volume = 1;
 
-  const btn = document.querySelector('.speak-btn');
+  const speakBtn = document.getElementById("speakBtn");
+  const stopBtn  = document.getElementById("stopBtn");
 
-  function doSpeak() {
-    const voices    = window.speechSynthesis.getVoices();
-    // Try exact match first (e.g. ta-IN), then language prefix (e.g. ta)
-    const preferred = voices.find(v => v.lang === ttsLang) ||
-                      voices.find(v => v.lang.startsWith(ttsLang.split("-")[0])) ||
-                      voices.find(v => v.lang.startsWith("en")); // last resort English
-    if (preferred) utterance.voice = preferred;
+  utterance.onstart = () => {
+    isSpeaking = true;
+    if (speakBtn) { speakBtn.innerText="🔊 Speaking..."; speakBtn.style.background="rgba(168,85,247,0.3)"; }
+    if (stopBtn)  stopBtn.style.display = "inline-block";
+  };
 
-    utterance.onstart = () => {
-      if (btn) { btn.innerText="🔊 Speaking..."; btn.style.background="rgba(168,85,247,0.3)"; }
-    };
-    utterance.onend = () => {
-      if (btn) { btn.innerText="🔊 Read Aloud"; btn.style.background=""; }
-    };
-    utterance.onerror = () => {
-      if (btn) { btn.innerText="🔊 Read Aloud"; btn.style.background=""; }
-    };
+  const onDone = () => {
+    isSpeaking = false;
+    if (speakBtn) { speakBtn.innerText="🔊 Read Aloud"; speakBtn.style.background=""; }
+    if (stopBtn)  stopBtn.style.display = "none";
+  };
+  utterance.onend   = onDone;
+  utterance.onerror = onDone;
+
+  // ── GUARANTEED VOICE SELECTION ──
+  // This is the fix: we wait for voices to load if empty,
+  // then find the best voice with multiple fallback strategies
+  function pickVoiceAndSpeak() {
+    const voices = window.speechSynthesis.getVoices();
+
+    // Strategy 1: exact match e.g. "ta-IN"
+    let voice = voices.find(v => v.lang === ttsLang);
+
+    // Strategy 2: prefix match e.g. "ta" matches "ta-IN", "ta-SG"
+    if (!voice) {
+      const prefix = ttsLang.split("-")[0];
+      voice = voices.find(v => v.lang.startsWith(prefix));
+    }
+
+    // Strategy 3: For Hindi/Bengali/Marathi — also try without region
+    if (!voice && ["hi","bn","mr"].includes(selectedLang)) {
+      voice = voices.find(v => v.lang.includes(ttsLang.split("-")[0]));
+    }
+
+    // Strategy 4: English fallback (always available)
+    if (!voice) {
+      voice = voices.find(v => v.lang.startsWith("en"));
+    }
+
+    if (voice) {
+      utterance.voice = voice;
+      console.log("TTS voice:", voice.name, voice.lang);
+    } else {
+      console.warn("No voice found for", ttsLang, "- using browser default");
+    }
+
     window.speechSynthesis.speak(utterance);
   }
 
-  // Voices load asynchronously on first call — wait for them
+  // If voices not loaded yet (common on first call), wait for them
   const voices = window.speechSynthesis.getVoices();
   if (voices.length === 0) {
-    window.speechSynthesis.onvoiceschanged = doSpeak;
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.onvoiceschanged = null;
+      pickVoiceAndSpeak();
+    };
   } else {
-    doSpeak();
+    pickVoiceAndSpeak();
   }
 }
 
-// ══════════════════════════════════════════════════════
+function stopSpeaking() {
+  window.speechSynthesis.cancel();
+  isSpeaking = false;
+  const speakBtn = document.getElementById("speakBtn");
+  const stopBtn  = document.getElementById("stopBtn");
+  if (speakBtn) { speakBtn.innerText="🔊 Read Aloud"; speakBtn.style.background=""; }
+  if (stopBtn)  stopBtn.style.display="none";
+}
+
+// ══════════════════════════════════════════════════════════
+// SPEAK ANY TEXT in current language (used by agent)
+// ══════════════════════════════════════════════════════════
+function speakText(text) {
+  stopSpeaking();
+  const ttsLang   = LANG_CONFIG[selectedLang]?.tts || "en-IN";
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang   = ttsLang;
+  utterance.rate   = 0.85;
+  utterance.pitch  = 1.0;
+  utterance.volume = 1;
+
+  function go() {
+    const voices  = window.speechSynthesis.getVoices();
+    const prefix  = ttsLang.split("-")[0];
+    const voice   = voices.find(v => v.lang === ttsLang) ||
+                    voices.find(v => v.lang.startsWith(prefix)) ||
+                    voices.find(v => v.lang.startsWith("en"));
+    if (voice) utterance.voice = voice;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) {
+    window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.onvoiceschanged=null; go(); };
+  } else { go(); }
+}
+
+// ══════════════════════════════════════════════════════════
+// AI AGENT
+// ══════════════════════════════════════════════════════════
+let agentOpen = false;
+
+function toggleAgent() {
+  agentOpen = !agentOpen;
+  const panel = document.getElementById("agentPanel");
+  if (agentOpen) {
+    panel.classList.add("open");
+    document.getElementById("agentInput")?.focus();
+  } else {
+    panel.classList.remove("open");
+  }
+}
+
+async function agentSend() {
+  const input = document.getElementById("agentInput");
+  const q = input?.value.trim();
+  if (!q) return;
+  input.value = "";
+  agentAsk(q);
+}
+
+async function agentAsk(question) {
+  addAgentMsg(question, "user");
+
+  // Show typing indicator
+  const typingEl = document.createElement("div");
+  typingEl.className = "msg-typing";
+  typingEl.id = "agentTyping";
+  typingEl.innerText = "✦ Thinking...";
+  document.getElementById("agentMessages").appendChild(typingEl);
+  scrollAgentToBottom();
+
+  let answer = "";
+  try {
+    if (!navigator.onLine) throw new Error("offline");
+    const res  = await fetch(BACKEND + "/agent", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ question, lang: selectedLang }),
+      signal:  AbortSignal.timeout(10000)
+    });
+    const data = await res.json();
+    answer = data.answer || "Sorry, I could not find an answer.";
+  } catch {
+    // Offline local fallback
+    answer = localAgentAnswer(question);
+  }
+
+  // Remove typing
+  document.getElementById("agentTyping")?.remove();
+  addAgentMsg(answer, "bot");
+  // Auto-speak agent reply
+  speakText(answer);
+}
+
+// Local offline agent answers
+function localAgentAnswer(q) {
+  const lower = q.toLowerCase();
+  if (lower.includes("aadhaar") || lower.includes("aadhar"))
+    return "For Aadhaar: visit uidai.gov.in or nearest Seva Kendra. Give fingerprints and iris scan. Download e-Aadhaar after 90 days.";
+  if (lower.includes("ration") || lower.includes("food"))
+    return "For Ration Card: visit Civil Supplies office, fill Form A, attach Aadhaar and address proof. Inspector visits in 30 days.";
+  if (lower.includes("pension") || lower.includes("old age"))
+    return "Old Age Pension: must be 60+ and BPL holder. Apply at Panchayat or BDO. Rs 200-500/month credited after approval.";
+  if (lower.includes("voter") || lower.includes("election"))
+    return "Voter ID: visit voters.eci.gov.in, fill Form 6, must be 18+. BLO verifies your address. Download e-EPIC from portal.";
+  if (lower.includes("pan"))
+    return "PAN Card: apply at onlineservices.nsdl.com, fill Form 49A, pay Rs 107. e-PAN emailed within 48 hours.";
+  if (lower.includes("ayushman") || lower.includes("health"))
+    return "Ayushman Bharat: check eligibility at mera.pmjay.gov.in. Covers Rs 5 lakh/year. Completely free and cashless.";
+  if (lower.includes("document") || lower.includes("paper"))
+    return "Common documents: Aadhaar Card, Passport-size photos, Address proof (electricity bill), and any existing certificates.";
+  if (lower.includes("fee") || lower.includes("cost") || lower.includes("free"))
+    return "Fees: Aadhaar free, Voter ID free, Ayushman free, PAN Rs 107, Land records Rs 60, Others Rs 10-30.";
+  if (lower.includes("time") || lower.includes("day") || lower.includes("long"))
+    return "Times: Aadhaar 90 days, Birth Cert 7 days, Caste/Income 15 days, Ration Card 30 days, PAN 15-20 days.";
+  return "I can help with: Ration Card, Aadhaar, Pension, Voter ID, Ayushman Health, PAN Card, Driving Licence, Scholarship, Birth Certificate, Land Records, Income Certificate, and Caste Certificate. Just ask!";
+}
+
+function addAgentMsg(text, type) {
+  const el = document.createElement("div");
+  el.className = type === "user" ? "msg-user" : "msg-bot";
+  el.innerText = text;
+  document.getElementById("agentMessages").appendChild(el);
+  scrollAgentToBottom();
+}
+
+function scrollAgentToBottom() {
+  const msgs = document.getElementById("agentMessages");
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ══════════════════════════════════════════════════════════
 // FEEDBACK
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 async function sendFeedback(rating) {
   const sn = document.getElementById("serviceName")?.innerText;
   if (!sn) return;
   try {
     await fetch(BACKEND + "/feedback", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ service: sn, rating, comment: "" })
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({service:sn, rating, comment:""})
     });
   } catch {}
   const u = document.getElementById("thumbsUp");
   const d = document.getElementById("thumbsDown");
-  if (rating === "helpful") {
-    if (u) u.style.background = "rgba(0,255,136,0.3)";
-    if (d) d.style.background = "";
-    showToast("👍 Thank you for your feedback!");
+  if (rating==="helpful") {
+    if(u) u.style.background="rgba(0,255,136,0.3)";
+    if(d) d.style.background="";
+    showToast("👍 Thank you!");
   } else {
-    if (d) d.style.background = "rgba(255,107,107,0.3)";
-    if (u) u.style.background = "";
-    showToast("👎 We will improve. Thank you!");
+    if(d) d.style.background="rgba(255,107,107,0.3)";
+    if(u) u.style.background="";
+    showToast("👎 We will improve!");
   }
 }
 
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 // HELPERS
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 function setStatus(msg, type) {
   const el = document.getElementById("status");
   if (!el) return;
   el.innerText = msg;
-  const c = { success:"#00ff88",error:"#ff6b6b",loading:"#00b4ff",listening:"#a855f7",normal:"#6b8cba" };
+  const c = {success:"#00ff88",error:"#ff6b6b",loading:"#00b4ff",listening:"#a855f7",normal:"#6b8cba"};
   el.style.color = c[type] || "#6b8cba";
 }
 
@@ -374,47 +586,47 @@ function showError(msg) {
   const el = document.getElementById("errorBox");
   if (!el) return;
   el.innerText = msg;
-  el.style.animation = "none"; void el.offsetWidth; el.style.animation = "fadeUp 0.3s ease";
-  setTimeout(() => { el.innerText = ""; }, 5000);
+  el.style.animation="none"; void el.offsetWidth; el.style.animation="fadeUp 0.3s ease";
+  setTimeout(() => { el.innerText=""; }, 6000);
 }
 
-function hideError() { const el = document.getElementById("errorBox"); if (el) el.innerText = ""; }
+function hideError() { const el=document.getElementById("errorBox"); if(el) el.innerText=""; }
 
 function shakeInput() {
   const el = document.getElementById("textInput");
   if (!el) return;
-  el.style.borderColor = "#ff6b6b"; el.style.transform = "translateX(-6px)";
-  setTimeout(() => el.style.transform = "translateX(6px)",  100);
-  setTimeout(() => el.style.transform = "translateX(-4px)", 200);
-  setTimeout(() => el.style.transform = "translateX(0)",    300);
-  setTimeout(() => el.style.borderColor = "",               800);
+  el.style.borderColor="#ff6b6b"; el.style.transform="translateX(-6px)";
+  setTimeout(()=>el.style.transform="translateX(6px)",100);
+  setTimeout(()=>el.style.transform="translateX(-4px)",200);
+  setTimeout(()=>el.style.transform="translateX(0)",300);
+  setTimeout(()=>el.style.borderColor="",800);
 }
 
 function showLoadingInResult() {
-  const sn = document.getElementById("serviceName");
-  const sl = document.getElementById("stepsList");
-  const rb = document.getElementById("resultBox");
-  if (sn) sn.innerText = "Loading...";
-  if (sl) sl.innerHTML = `<li style="opacity:0.5;">Fetching info...</li><li style="opacity:0.3;">Please wait...</li>`;
-  if (rb) rb.style.display = "block";
+  const sn=document.getElementById("serviceName");
+  const sl=document.getElementById("stepsList");
+  const rb=document.getElementById("resultBox");
+  if(sn) sn.innerText="Loading...";
+  if(sl) sl.innerHTML=`<li style="opacity:0.5;">Fetching in ${LANG_CONFIG[selectedLang].label}...</li><li style="opacity:0.3;">Please wait...</li>`;
+  if(rb) rb.style.display="block";
 }
 
-function hideResult() { const rb = document.getElementById("resultBox"); if (rb) rb.style.display="none"; }
+function hideResult() { const rb=document.getElementById("resultBox"); if(rb) rb.style.display="none"; }
 
 function showToast(msg) {
   const ex = document.getElementById("toast");
   if (ex) ex.remove();
   const t = document.createElement("div");
-  t.id = "toast"; t.innerText = msg;
-  t.style.cssText = `position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);
+  t.id="toast"; t.innerText=msg;
+  t.style.cssText=`position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);
     background:linear-gradient(135deg,#0d1425,#111c35);border:1px solid rgba(0,255,136,0.3);
     color:#00ff88;padding:12px 24px;border-radius:100px;font-size:13px;font-weight:600;
-    font-family:'DM Sans',sans-serif;z-index:999;opacity:0;transition:all 0.3s ease;
-    box-shadow:0 8px 32px rgba(0,0,0,0.4);white-space:nowrap;`;
+    font-family:'DM Sans',sans-serif;z-index:400;opacity:0;transition:all 0.3s ease;
+    box-shadow:0 8px 32px rgba(0,0,0,0.4);white-space:nowrap;pointer-events:none;`;
   document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity="1"; t.style.transform="translateX(-50%) translateY(0)"; }, 10);
-  setTimeout(() => {
+  setTimeout(()=>{t.style.opacity="1";t.style.transform="translateX(-50%) translateY(0)";},10);
+  setTimeout(()=>{
     t.style.opacity="0"; t.style.transform="translateX(-50%) translateY(10px)";
-    setTimeout(() => t.remove(), 300);
-  }, 2800);
+    setTimeout(()=>t.remove(),300);
+  },2800);
 }

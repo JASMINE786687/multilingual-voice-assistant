@@ -2,19 +2,18 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from deep_translator import GoogleTranslator
 from datetime import datetime
-import time
+import time, os, requests as req_lib
 
 app = Flask(__name__)
 CORS(app)
 
 feedback_db = []
 
-# ══════════════════════════════════════
-# TRANSLATION  — free, no billing ever
-# Uses deep-translator → Google Translate
-# Retries once on failure, falls back to English
-# ══════════════════════════════════════
-def translate_text(text, lang):
+# ══════════════════════════════════════════
+# TRANSLATION  — free, Google Translate via
+# deep-translator. Retry once on failure.
+# ══════════════════════════════════════════
+def safe_translate(text, lang):
     if lang == "en" or not text.strip():
         return text
     for attempt in range(2):
@@ -22,24 +21,22 @@ def translate_text(text, lang):
             result = GoogleTranslator(source="en", target=lang).translate(text)
             return result if result else text
         except Exception as e:
-            print(f"Translation error attempt {attempt+1}: {e}")
+            print(f"[translate] attempt {attempt+1} failed: {e}")
             if attempt == 0:
-                time.sleep(0.8)   # wait before retry
-    return text   # fallback to English
+                time.sleep(0.6)
+    return text
 
-def translate_steps(steps, lang):
+def translate_list(items, lang):
     if lang == "en":
-        return steps
-    return [translate_text(s, lang) for s in steps]
+        return items
+    return [safe_translate(s, lang) for s in items]
 
-# ══════════════════════════════════════
+# ══════════════════════════════════════════
 # 12-SERVICE DATABASE
-# ══════════════════════════════════════
+# ══════════════════════════════════════════
 SERVICE_DB = {
     "ration": {
-        "name": "Ration Card",
-        "icon": "🍚",
-        "link": "https://www.tnpds.gov.in",
+        "name": "Ration Card", "icon": "🍚", "link": "https://www.tnpds.gov.in",
         "steps": [
             "Visit the nearest Civil Supplies office or go to https://tnpds.gov.in",
             "Fill the ration card application form (Form A for new card)",
@@ -51,9 +48,7 @@ SERVICE_DB = {
         ]
     },
     "pension": {
-        "name": "Old Age Pension (IGNOAPS)",
-        "icon": "💰",
-        "link": "https://ignoaps.gov.in",
+        "name": "Old Age Pension (IGNOAPS)", "icon": "💰", "link": "https://ignoaps.gov.in",
         "steps": [
             "Eligibility: age 60 or above and BPL (Below Poverty Line) card holder",
             "Get the IGNOAPS application form from Village Panchayat or Block office",
@@ -65,9 +60,7 @@ SERVICE_DB = {
         ]
     },
     "aadhaar": {
-        "name": "Aadhaar Card",
-        "icon": "🪪",
-        "link": "https://uidai.gov.in",
+        "name": "Aadhaar Card", "icon": "🪪", "link": "https://uidai.gov.in",
         "steps": [
             "Book an appointment at https://appointments.uidai.gov.in or visit a nearby Aadhaar Seva Kendra",
             "Bring any one of: Passport, Voter ID, Driving Licence, or Ration Card",
@@ -78,9 +71,7 @@ SERVICE_DB = {
         ]
     },
     "birth_certificate": {
-        "name": "Birth Certificate",
-        "icon": "👶",
-        "link": "https://crsorgi.gov.in",
+        "name": "Birth Certificate", "icon": "👶", "link": "https://crsorgi.gov.in",
         "steps": [
             "For hospital births: hospital gives Form 1, collect within 21 days",
             "For home births: register at the local Municipal or Panchayat office",
@@ -92,9 +83,7 @@ SERVICE_DB = {
         ]
     },
     "voter_id": {
-        "name": "Voter ID (EPIC)",
-        "icon": "🗳️",
-        "link": "https://voters.eci.gov.in",
+        "name": "Voter ID (EPIC)", "icon": "🗳️", "link": "https://voters.eci.gov.in",
         "steps": [
             "Visit https://voters.eci.gov.in or use the Voter Helpline App",
             "Fill Form 6 for new registration, you must be 18 or above",
@@ -105,9 +94,7 @@ SERVICE_DB = {
         ]
     },
     "health_insurance": {
-        "name": "Ayushman Bharat (PMJAY)",
-        "icon": "🏥",
-        "link": "https://pmjay.gov.in",
+        "name": "Ayushman Bharat (PMJAY)", "icon": "🏥", "link": "https://pmjay.gov.in",
         "steps": [
             "Check eligibility at https://mera.pmjay.gov.in using Aadhaar or Ration Card number",
             "If eligible, visit the nearest government or empanelled private hospital",
@@ -119,9 +106,7 @@ SERVICE_DB = {
         ]
     },
     "income_certificate": {
-        "name": "Income Certificate",
-        "icon": "📄",
-        "link": "https://edistrict.gov.in",
+        "name": "Income Certificate", "icon": "📄", "link": "https://edistrict.gov.in",
         "steps": [
             "Visit the e-District portal of your state or the nearest CSC (Common Service Centre)",
             "Fill the income certificate application form",
@@ -133,9 +118,7 @@ SERVICE_DB = {
         ]
     },
     "land_records": {
-        "name": "Land Records (Patta / Chitta)",
-        "icon": "🏞️",
-        "link": "https://eservices.tn.gov.in",
+        "name": "Land Records (Patta / Chitta)", "icon": "🏞️", "link": "https://eservices.tn.gov.in",
         "steps": [
             "Visit https://eservices.tn.gov.in for Tamil Nadu or your state land portal",
             "Select Patta or Chitta or Land Records service",
@@ -147,9 +130,7 @@ SERVICE_DB = {
         ]
     },
     "scholarship": {
-        "name": "Government Scholarship",
-        "icon": "🎓",
-        "link": "https://scholarships.gov.in",
+        "name": "Government Scholarship", "icon": "🎓", "link": "https://scholarships.gov.in",
         "steps": [
             "Visit https://scholarships.gov.in, the National Scholarship Portal",
             "Register with your Aadhaar number and mobile number",
@@ -161,9 +142,7 @@ SERVICE_DB = {
         ]
     },
     "driving_licence": {
-        "name": "Driving Licence",
-        "icon": "🚗",
-        "link": "https://sarathi.parivahan.gov.in",
+        "name": "Driving Licence", "icon": "🚗", "link": "https://sarathi.parivahan.gov.in",
         "steps": [
             "Apply for Learner Licence first at https://sarathi.parivahan.gov.in",
             "Fill Form 1 (medical self-declaration) and Form 2 (learner licence)",
@@ -175,9 +154,7 @@ SERVICE_DB = {
         ]
     },
     "pan_card": {
-        "name": "PAN Card",
-        "icon": "💳",
-        "link": "https://www.onlineservices.nsdl.com",
+        "name": "PAN Card", "icon": "💳", "link": "https://www.onlineservices.nsdl.com",
         "steps": [
             "Apply online at https://www.onlineservices.nsdl.com (NSDL) or https://www.utiitsl.com",
             "Fill Form 49A for Indian citizens",
@@ -189,9 +166,7 @@ SERVICE_DB = {
         ]
     },
     "caste_certificate": {
-        "name": "Caste / Community Certificate",
-        "icon": "📜",
-        "link": "https://edistrict.gov.in",
+        "name": "Caste / Community Certificate", "icon": "📜", "link": "https://edistrict.gov.in",
         "steps": [
             "Visit the e-District portal of your state or nearest CSC",
             "Select Caste Certificate service",
@@ -204,9 +179,9 @@ SERVICE_DB = {
     }
 }
 
-# ══════════════════════════════════════
-# KEYWORD MAP  (8 languages)
-# ══════════════════════════════════════
+# ══════════════════════════════════════════
+# KEYWORD MAP  (8 Indian languages)
+# ══════════════════════════════════════════
 KEYWORD_MAP = {
     "ration":            ["ration","food card","ரேஷன்","राशन","రేషన్","ಪಡಿತರ","റേഷൻ","রেশন","शिधापत्रिका"],
     "pension":           ["pension","old age","ஓய்வூதியம்","पेंशन","పెన్షన్","ನಿವೃತ್ತಿ","পেনশন","निवृत्तिवेतन"],
@@ -224,15 +199,16 @@ KEYWORD_MAP = {
 
 def detect_service(text):
     lower = " " + text.lower().strip() + " "
-    for key, keywords in KEYWORD_MAP.items():
-        for kw in keywords:
+    for key, kws in KEYWORD_MAP.items():
+        for kw in kws:
             if kw.lower() in lower:
                 return key
     return None
 
-# ══════════════════════════════════════
+# ══════════════════════════════════════════
 # ROUTES
-# ══════════════════════════════════════
+# ══════════════════════════════════════════
+
 @app.route("/")
 def home():
     return jsonify({"message": "VAANI Backend is running!", "status": "active"})
@@ -240,48 +216,100 @@ def home():
 @app.route("/translate", methods=["POST"])
 def translate():
     data = request.get_json()
-    text = data.get("text", "")
-    lang = data.get("target_lang", "en")
-    return jsonify({"translated_text": translate_text(text, lang)})
+    return jsonify({"translated_text": safe_translate(data.get("text",""), data.get("target_lang","en"))})
 
 @app.route("/get_service", methods=["POST"])
 def get_service():
     data = request.get_json()
     text = data.get("text", "")
     lang = data.get("target_lang", "en")
+    key  = detect_service(text)
 
-    key = detect_service(text)
-    if not key or key not in SERVICE_DB:
-        return jsonify({
-            "success": False,
-            "message": "Service not found. Try: ration, pension, aadhaar, voter, health, pan, driving, scholarship, income, land, birth, caste"
-        })
+    if not key:
+        return jsonify({"success": False,
+            "message": "Service not found. Try: ration, pension, aadhaar, voter, health, pan, driving, scholarship, income, land, birth, caste"})
 
-    svc   = SERVICE_DB[key]
-    name  = translate_text(svc["name"], lang)
-    steps = translate_steps(list(svc["steps"]), lang)
-
+    svc = SERVICE_DB[key]
     return jsonify({
         "success":     True,
-        "service":     name,
+        "service":     safe_translate(svc["name"], lang),
         "icon":        svc["icon"],
         "link":        svc["link"],
-        "steps":       steps,
+        "steps":       translate_list(list(svc["steps"]), lang),
         "service_key": key
     })
+
+# ── AI AGENT chat endpoint ──────────────────────────
+@app.route("/agent", methods=["POST"])
+def agent():
+    data     = request.get_json()
+    question = data.get("question", "").strip()
+    lang     = data.get("lang", "en")
+
+    if not question:
+        return jsonify({"answer": "Please ask a question."})
+
+    q_lower = question.lower()
+
+    # ── Rule-based answers for common gov questions ──
+    ANSWERS = {
+        ("ration","food card"):
+            "To get a Ration Card: visit Civil Supplies office, fill Form A, attach Aadhaar and address proof for all family members. Verification happens within 30 days.",
+        ("aadhaar","aadhar","uid"):
+            "For Aadhaar: visit uidai.gov.in or nearest Seva Kendra, give 10 fingerprints and iris scan. Download e-Aadhaar after 90 days.",
+        ("pension","old age"):
+            "Old Age Pension (IGNOAPS): must be 60+ and BPL card holder. Apply at Village Panchayat or BDO office. Rs 200-500/month after approval.",
+        ("voter","election","epic"):
+            "Voter ID: visit voters.eci.gov.in, fill Form 6, must be 18+. BLO verifies your address. Download e-EPIC from portal.",
+        ("ayushman","health","pmjay"):
+            "Ayushman Bharat: check eligibility at mera.pmjay.gov.in. Covers Rs 5 lakh/year at empanelled hospitals. Completely cashless and free.",
+        ("pan","income tax"):
+            "PAN Card: apply at onlineservices.nsdl.com, fill Form 49A, pay Rs 107. e-PAN emailed within 48 hours.",
+        ("driving","licence","license"):
+            "Driving Licence: apply at sarathi.parivahan.gov.in. Get Learner Licence first, wait 30 days, then apply for DL and pass the practical test.",
+        ("scholarship","study","student"):
+            "Scholarships: visit scholarships.gov.in, register with Aadhaar, choose SC/ST/OBC/Merit scheme, submit before October-November deadline.",
+        ("birth","born"):
+            "Birth Certificate: collect Form 1 from hospital within 21 days. Register at Municipal office for home births. Certificate issued in 7 days.",
+        ("land","patta","chitta"):
+            "Land Records (Patta/Chitta): visit eservices.tn.gov.in for Tamil Nadu or your state portal. Download Patta for Rs 60 online.",
+        ("income","salary"):
+            "Income Certificate: visit e-District portal or CSC. Attach salary slips or self-declaration. Fee is Rs 10-30. Ready in 15 days.",
+        ("caste","community","sc","st","obc"):
+            "Caste Certificate: visit e-District portal or CSC. Attach father's caste certificate and Aadhaar. Issued by Tahsildar in 15 days.",
+        ("documents","papers","what documents"):
+            "Common documents needed: Aadhaar Card, Passport-size photos, Address proof (electricity bill or bank passbook), and existing certificates as required.",
+        ("help","how","what","explain"):
+            "VAANI helps you access 12 government services: Ration Card, Aadhaar, Pension, Voter ID, Ayushman Health, PAN Card, Driving Licence, Scholarship, Birth Certificate, Land Records, Income Certificate, and Caste Certificate. Just type or speak the service name!",
+        ("fee","cost","charge","free"):
+            "Most certificates cost Rs 10-107. Aadhaar: free. Voter ID: free. Ayushman card: free. PAN card: Rs 107. Land records: Rs 60. Ration card: free.",
+        ("time","days","how long"):
+            "Processing times: Aadhaar 90 days, Birth Cert 7 days, Caste/Income cert 15 days, Ration Card 30 days, Driving Licence 7 days, PAN Card 15-20 days.",
+    }
+
+    answer_text = "I can help with: Ration Card, Aadhaar, Pension, Voter ID, Ayushman Health, PAN Card, Driving Licence, Scholarship, Birth Certificate, Land Records, Income Certificate, and Caste Certificate. Please ask about any of these services!"
+
+    for keywords, answer in ANSWERS.items():
+        if any(kw in q_lower for kw in keywords):
+            answer_text = answer
+            break
+
+    # Translate answer to user's language
+    if lang != "en":
+        answer_text = safe_translate(answer_text, lang)
+
+    return jsonify({"answer": answer_text})
 
 @app.route("/feedback", methods=["POST"])
 def feedback():
     data = request.get_json()
     feedback_db.append({
-        "service": data.get("service", ""),
-        "rating":  data.get("rating",  ""),
-        "comment": data.get("comment", ""),
+        "service": data.get("service",""),
+        "rating":  data.get("rating",""),
         "time":    str(datetime.now())
     })
     return jsonify({"success": True})
 
-# kept for compatibility — no-ops since no login
 @app.route("/save_history", methods=["POST"])
 def save_history():
     return jsonify({"success": True})

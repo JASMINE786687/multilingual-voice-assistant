@@ -1,67 +1,36 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from deep_translator import GoogleTranslator
-from datetime import datetime, timedelta
-import hashlib, os, random, string, requests
+from datetime import datetime
+import time
 
 app = Flask(__name__)
 CORS(app)
 
-# ══════════════════════════════════════
-# FAST2SMS CONFIG
-# ══════════════════════════════════════
-FAST2SMS_API_KEY = os.environ.get(
-    "FAST2SMS_API_KEY",
-    "0z0H3sPDkP9TM8ji4ax8jEhAxjnHCBMtIuuTvva9ZaY8tvqrxQ1ndd81CAIB"
-)
-
-# ══════════════════════════════════════
-# IN-MEMORY DATABASE
-# ══════════════════════════════════════
-users       = {}
-otp_store   = {}
-sessions    = {}
 feedback_db = []
 
 # ══════════════════════════════════════
-# HELPERS
+# TRANSLATION  — free, no billing ever
+# Uses deep-translator → Google Translate
+# Retries once on failure, falls back to English
 # ══════════════════════════════════════
-def make_token(phone):
-    raw = f"{phone}{datetime.now().isoformat()}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+def translate_text(text, lang):
+    if lang == "en" or not text.strip():
+        return text
+    for attempt in range(2):
+        try:
+            result = GoogleTranslator(source="en", target=lang).translate(text)
+            return result if result else text
+        except Exception as e:
+            print(f"Translation error attempt {attempt+1}: {e}")
+            if attempt == 0:
+                time.sleep(0.8)   # wait before retry
+    return text   # fallback to English
 
-def gen_otp():
-    return "".join(random.choices(string.digits, k=6))
-
-def send_otp_sms(phone, otp):
-    try:
-        payload = {
-            "sender_id": "FSTSMS",
-            "message":   f"Your VAANI OTP is {otp}. Valid for 5 minutes. Do not share.",
-            "language":  "english",
-            "route":     "q",
-            "numbers":   phone.replace("+91", "").replace("+", "")
-        }
-        headers = {
-            "authorization": FAST2SMS_API_KEY,
-            "Content-Type":  "application/json"
-        }
-        response = requests.post(
-            "https://www.fast2sms.com/dev/bulkV2",
-            json=payload, headers=headers, timeout=10
-        )
-        print("FAST2SMS RESPONSE:", response.text)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("return") == True:
-                return True, "OTP sent successfully"
-            return False, data.get("message", "Fast2SMS error")
-        return False, response.text
-    except Exception as e:
-        print("SMS ERROR:", e)
-        # Dev fallback — OTP printed in Render logs
-        print(f"\n[DEV] OTP for {phone}: {otp}\n")
-        return True, "OTP sent (check server logs)"
+def translate_steps(steps, lang):
+    if lang == "en":
+        return steps
+    return [translate_text(s, lang) for s in steps]
 
 # ══════════════════════════════════════
 # 12-SERVICE DATABASE
@@ -236,21 +205,21 @@ SERVICE_DB = {
 }
 
 # ══════════════════════════════════════
-# KEYWORD DETECTION MAP
+# KEYWORD MAP  (8 languages)
 # ══════════════════════════════════════
 KEYWORD_MAP = {
-    "ration":            ["ration", "food card", "ரேஷன்", "राशन", "రేషన్", "ಪಡಿತರ", "റേഷൻ"],
-    "pension":           ["pension", "old age", "ஓய்வூதியம்", "पेंशन", "పెన్షన్", "ನಿವೃತ್ತಿ"],
-    "aadhaar":           ["aadhaar", "aadhar", "uid", "ஆதார்", "आधार", "ఆధార్", "ಆಧಾರ್"],
-    "birth_certificate": ["birth", "born", "பிறப்பு", "जन्म", "జన్మ", "ಜನನ"],
-    "voter_id":          ["voter", "election", "epic", "வாக்காளர்", "मतदाता", "ఓటర్", "ಮತದಾರ"],
-    "health_insurance":  ["health", "ayushman", "pmjay", "hospital", "மருத்துவம்", "आयुष्मान"],
-    "income_certificate":["income", "salary", "வருமானம்", "आय प्रमाण", "ఆదాయం"],
-    "land_records":      ["land", "patta", "chitta", "நிலம்", "भूमि", "భూమి"],
-    "scholarship":       ["scholarship", "study", "student", "கல்வி", "छात्रवृत्ति"],
-    "driving_licence":   ["driving", "licence", "license", "ஓட்டுநர்", "ड्राइविंग"],
-    "pan_card":          ["pan card", " pan ", "income tax", "பான்", "पैन"],
-    "caste_certificate": ["caste", "community", " sc ", " st ", "obc", "சாதி", "जाति", "కులం"]
+    "ration":            ["ration","food card","ரேஷன்","राशन","రేషన్","ಪಡಿತರ","റേഷൻ","রেশন","शिधापत्रिका"],
+    "pension":           ["pension","old age","ஓய்வூதியம்","पेंशन","పెన్షన్","ನಿವೃತ್ತಿ","পেনশন","निवृत्तिवेतन"],
+    "aadhaar":           ["aadhaar","aadhar","uid","ஆதார்","आधार","ఆధార్","ಆಧಾರ್","আধার"],
+    "birth_certificate": ["birth","born","பிறப்பு","जन्म","జన్మ","ಜನನ","জন্ম"],
+    "voter_id":          ["voter","election","epic","வாக்காளர்","मतदाता","ఓటర్","ಮತದಾರ","ভোটার"],
+    "health_insurance":  ["health","ayushman","pmjay","hospital","மருத்துவம்","आयुष्मान","ఆయుష్మాన్","স্বাস্থ্য"],
+    "income_certificate":["income","salary","வருமானம்","आय प्रमाण","ఆదాయం","ಆದಾಯ","আয়"],
+    "land_records":      ["land","patta","chitta","நிலம்","भूमि","భూమి","ಭೂಮಿ","জমি"],
+    "scholarship":       ["scholarship","study","student","கல்வி","छात्रवृत्ति","స్కాలర్షిప్","বৃত্তি"],
+    "driving_licence":   ["driving","licence","license","ஓட்டுநர்","ड्राइविंग","డ్రైవింగ్","ಚಾಲನೆ","ড্রাইভিং"],
+    "pan_card":          ["pan card"," pan ","income tax","பான்","पैन","పాన్","ಪ್ಯಾನ್","প্যান"],
+    "caste_certificate": ["caste","community"," sc "," st ","obc","சாதி","जाति","కులం","ಜಾತಿ","জাতি"]
 }
 
 def detect_service(text):
@@ -264,83 +233,16 @@ def detect_service(text):
 # ══════════════════════════════════════
 # ROUTES
 # ══════════════════════════════════════
-
 @app.route("/")
 def home():
     return jsonify({"message": "VAANI Backend is running!", "status": "active"})
-
-@app.route("/send_otp", methods=["POST"])
-def send_otp():
-    data  = request.get_json()
-    phone = data.get("phone", "").strip()
-    name  = data.get("name",  "").strip()
-
-    if not phone or len(phone) < 10:
-        return jsonify({"success": False, "message": "Invalid phone number"})
-
-    if not phone.startswith("+"):
-        phone = "+91" + phone
-
-    otp     = gen_otp()
-    expires = datetime.now() + timedelta(minutes=5)
-    otp_store[phone] = {"otp": otp, "expires": expires, "name": name}
-
-    ok, msg = send_otp_sms(phone, otp)
-    if ok:
-        return jsonify({"success": True, "message": msg, "phone": phone})
-    return jsonify({"success": False, "message": msg})
-
-@app.route("/verify_otp", methods=["POST"])
-def verify_otp():
-    data  = request.get_json()
-    phone = data.get("phone", "").strip()
-    otp   = data.get("otp",   "").strip()
-    name  = data.get("name",  "").strip()
-
-    if not phone.startswith("+"):
-        phone = "+91" + phone
-
-    record = otp_store.get(phone)
-    if not record:
-        return jsonify({"success": False, "message": "No OTP found"})
-    if datetime.now() > record["expires"]:
-        del otp_store[phone]
-        return jsonify({"success": False, "message": "OTP expired"})
-    if record["otp"] != otp:
-        return jsonify({"success": False, "message": "Incorrect OTP"})
-
-    del otp_store[phone]
-    display_name = name or record.get("name") or "User"
-    if phone not in users:
-        users[phone] = {"name": display_name, "phone": phone, "history": []}
-    token = make_token(phone)
-    sessions[token] = phone
-
-    return jsonify({
-        "success": True,
-        "token":   token,
-        "user":    users[phone]
-    })
-
-@app.route("/logout", methods=["POST"])
-def logout():
-    data  = request.get_json()
-    token = data.get("token", "")
-    sessions.pop(token, None)
-    return jsonify({"success": True})
 
 @app.route("/translate", methods=["POST"])
 def translate():
     data = request.get_json()
     text = data.get("text", "")
     lang = data.get("target_lang", "en")
-    if lang == "en":
-        return jsonify({"translated_text": text})
-    try:
-        translated = GoogleTranslator(source="auto", target=lang).translate(text)
-        return jsonify({"translated_text": translated})
-    except Exception as e:
-        return jsonify({"translated_text": text, "error": str(e)})
+    return jsonify({"translated_text": translate_text(text, lang)})
 
 @app.route("/get_service", methods=["POST"])
 def get_service():
@@ -356,21 +258,8 @@ def get_service():
         })
 
     svc   = SERVICE_DB[key]
-    name  = svc["name"]
-    steps = list(svc["steps"])
-
-    if lang != "en":
-        try:
-            name = GoogleTranslator(source="en", target=lang).translate(name)
-        except:
-            pass
-        translated_steps = []
-        for step in steps:
-            try:
-                translated_steps.append(GoogleTranslator(source="en", target=lang).translate(step))
-            except:
-                translated_steps.append(step)
-        steps = translated_steps
+    name  = translate_text(svc["name"], lang)
+    steps = translate_steps(list(svc["steps"]), lang)
 
     return jsonify({
         "success":     True,
@@ -380,19 +269,6 @@ def get_service():
         "steps":       steps,
         "service_key": key
     })
-
-@app.route("/save_history", methods=["POST"])
-def save_history():
-    data    = request.get_json()
-    token   = data.get("token", "")
-    service = data.get("service", "")
-    phone   = sessions.get(token)
-    if phone and phone in users:
-        users[phone]["history"].append({
-            "service": service,
-            "time":    str(datetime.now())
-        })
-    return jsonify({"success": True})
 
 @app.route("/feedback", methods=["POST"])
 def feedback():
@@ -405,8 +281,14 @@ def feedback():
     })
     return jsonify({"success": True})
 
-# ══════════════════════════════════════
-# RUN
-# ══════════════════════════════════════
+# kept for compatibility — no-ops since no login
+@app.route("/save_history", methods=["POST"])
+def save_history():
+    return jsonify({"success": True})
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    return jsonify({"success": True})
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

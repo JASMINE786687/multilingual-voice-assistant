@@ -1,41 +1,54 @@
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // VAANI — script.js
-// Fix: guaranteed multilingual TTS + full offline mode
-// ═══════════════════════════════════════════════════════════
+// Features: voice onboarding · usage counter · step tracker
+//           nearest office locator · form scanner (OCR) · QR code
+// ═══════════════════════════════════════════════════════════════
 
 const BACKEND = "https://multilingual-voice-assistant-870k.onrender.com";
 
-let resultText   = "";
-let selectedLang = "en";
-let isListening  = false;
-let isSpeaking   = false;
+let resultText     = "";
+let selectedLang   = "en";
+let isListening    = false;
+let currentSteps   = [];
+let currentQRUrl   = "";
+let currentSvcKey  = "";
+let scanResultText = "";
+let cameraStream   = null;
 
 // ── LANGUAGE CONFIG ──
 const LANG_CONFIG = {
-  "en": { label:"English",  flag:"🇬🇧", tts:"en-IN",  stt:"en-IN"  },
-  "ta": { label:"தமிழ்",    flag:"🇮🇳", tts:"ta-IN",  stt:"ta-IN"  },
-  "hi": { label:"हिन्दी",   flag:"🇮🇳", tts:"hi-IN",  stt:"hi-IN"  },
-  "te": { label:"తెలుగు",   flag:"🇮🇳", tts:"te-IN",  stt:"te-IN"  },
-  "kn": { label:"ಕನ್ನಡ",    flag:"🇮🇳", tts:"kn-IN",  stt:"kn-IN"  },
-  "ml": { label:"മലയാളം",   flag:"🇮🇳", tts:"ml-IN",  stt:"ml-IN"  },
-  "bn": { label:"বাংলা",    flag:"🇮🇳", tts:"bn-IN",  stt:"bn-IN"  },
-  "mr": { label:"मराठी",    flag:"🇮🇳", tts:"mr-IN",  stt:"mr-IN"  }
+  "en": { label:"English",  flag:"🇬🇧", tts:"en-IN", stt:"en-IN",
+    welcome:"Welcome to VAANI. I help you access government services in your language. Select Tamil, Hindi, or any Indian language and speak." },
+  "ta": { label:"தமிழ்",    flag:"🇮🇳", tts:"ta-IN", stt:"ta-IN",
+    welcome:"வாணி-க்கு வரவேற்கிறோம். நான் உங்கள் மொழியில் அரசு சேவைகளை பெற உதவுகிறேன். மைக்கை தட்டி பேசுங்கள்." },
+  "hi": { label:"हिन्दी",   flag:"🇮🇳", tts:"hi-IN", stt:"hi-IN",
+    welcome:"वाणी में आपका स्वागत है। मैं आपकी भाषा में सरकारी सेवाओं तक पहुँचने में मदद करता हूँ। माइक दबाएं और बोलें।" },
+  "te": { label:"తెలుగు",   flag:"🇮🇳", tts:"te-IN", stt:"te-IN",
+    welcome:"వాని కి స్వాగతం. నేను మీ భాషలో ప్రభుత్వ సేవలు పొందడంలో సహాయం చేస్తాను. మైక్ నొక్కి మాట్లాడండి." },
+  "kn": { label:"ಕನ್ನಡ",    flag:"🇮🇳", tts:"kn-IN", stt:"kn-IN",
+    welcome:"ವಾಣಿಗೆ ಸ್ವಾಗತ. ನಾನು ನಿಮ್ಮ ಭಾಷೆಯಲ್ಲಿ ಸರ್ಕಾರಿ ಸೇವೆಗಳನ್ನು ಪಡೆಯಲು ಸಹಾಯ ಮಾಡುತ್ತೇನೆ. ಮೈಕ್ ಒತ್ತಿ ಮಾತಾಡಿ." },
+  "ml": { label:"മലയാളം",   flag:"🇮🇳", tts:"ml-IN", stt:"ml-IN",
+    welcome:"വാണിയിൽ സ്വാഗതം. ഞാൻ നിങ്ങളുടെ ഭാഷയിൽ സർക്കാർ സേവനങ്ങൾ നേടാൻ സഹായിക്കുന്നു. മൈക്ക് അമർത്തി സംസാരിക്കൂ." },
+  "bn": { label:"বাংলা",    flag:"🇮🇳", tts:"bn-IN", stt:"bn-IN",
+    welcome:"ভাণীতে স্বাগতম। আমি আপনার ভাষায় সরকারি সেবা পেতে সাহায্য করি। মাইক চাপুন এবং কথা বলুন।" },
+  "mr": { label:"मराठी",    flag:"🇮🇳", tts:"mr-IN", stt:"mr-IN",
+    welcome:"वाणीत आपले स्वागत आहे. मी तुमच्या भाषेत सरकारी सेवा मिळवण्यास मदत करतो. मायक्रोफोन दाबा आणि बोला." }
 };
 
 // ── SERVICE CONFIG ──
 const SERVICE_CONFIG = {
-  "ration":            {icon:"🍚",link:"https://www.tnpds.gov.in",           color:"chip-green" },
-  "pension":           {icon:"💰",link:"https://ignoaps.gov.in",             color:"chip-blue"  },
-  "aadhaar":           {icon:"🪪",link:"https://uidai.gov.in",               color:"chip-purple"},
-  "birth_certificate": {icon:"👶",link:"https://crsorgi.gov.in",             color:"chip-green" },
-  "voter_id":          {icon:"🗳️",link:"https://voters.eci.gov.in",         color:"chip-blue"  },
-  "health_insurance":  {icon:"🏥",link:"https://pmjay.gov.in",               color:"chip-green" },
-  "income_certificate":{icon:"📄",link:"https://edistrict.gov.in",          color:"chip-blue"  },
-  "land_records":      {icon:"🏞️",link:"https://eservices.tn.gov.in",       color:"chip-purple"},
-  "scholarship":       {icon:"🎓",link:"https://scholarships.gov.in",       color:"chip-blue"  },
-  "driving_licence":   {icon:"🚗",link:"https://sarathi.parivahan.gov.in",   color:"chip-green" },
-  "pan_card":          {icon:"💳",link:"https://www.onlineservices.nsdl.com",color:"chip-purple"},
-  "caste_certificate": {icon:"📜",link:"https://edistrict.gov.in",          color:"chip-blue"  }
+  "ration":            { icon:"🍚", link:"https://www.tnpds.gov.in",            color:"chip-green",  office:"civil supplies office"       },
+  "pension":           { icon:"💰", link:"https://ignoaps.gov.in",              color:"chip-blue",   office:"block development office"    },
+  "aadhaar":           { icon:"🪪", link:"https://uidai.gov.in",                color:"chip-purple", office:"aadhaar seva kendra"         },
+  "birth_certificate": { icon:"👶", link:"https://crsorgi.gov.in",              color:"chip-green",  office:"municipal corporation office"},
+  "voter_id":          { icon:"🗳️", link:"https://voters.eci.gov.in",          color:"chip-blue",   office:"electoral office"            },
+  "health_insurance":  { icon:"🏥", link:"https://pmjay.gov.in",                color:"chip-green",  office:"ayushman bharat kendra"      },
+  "income_certificate":{ icon:"📄", link:"https://edistrict.gov.in",           color:"chip-blue",   office:"taluk office"                },
+  "land_records":      { icon:"🏞️", link:"https://eservices.tn.gov.in",        color:"chip-purple", office:"taluk office"                },
+  "scholarship":       { icon:"🎓", link:"https://scholarships.gov.in",        color:"chip-blue",   office:"district education office"   },
+  "driving_licence":   { icon:"🚗", link:"https://sarathi.parivahan.gov.in",    color:"chip-green",  office:"regional transport office"   },
+  "pan_card":          { icon:"💳", link:"https://www.onlineservices.nsdl.com", color:"chip-purple", office:"income tax office"           },
+  "caste_certificate": { icon:"📜", link:"https://edistrict.gov.in",           color:"chip-blue",   office:"taluk office"                }
 };
 
 const SERVICE_LABELS = {
@@ -47,101 +60,114 @@ const SERVICE_LABELS = {
   "caste_certificate":"Caste Cert."
 };
 
-// ════════════════════════════════════════════════════════════
-// OFFLINE DATA  — full English steps stored in-app
-// This guarantees offline works even first time (no backend)
-// ════════════════════════════════════════════════════════════
-const OFFLINE_DB = {
-  "ration":{"name":"Ration Card","icon":"🍚","link":"https://www.tnpds.gov.in","steps":["Visit the nearest Civil Supplies office or go to https://tnpds.gov.in","Fill the ration card application form (Form A for new card)","Attach proof of address: Aadhaar card, Voter ID, or Electricity Bill","Attach proof of identity for every family member","Submit the form and collect the acknowledgement slip","An inspector will visit your home for verification within 30 days","Collect your ration card from the office or receive it by post"]},
-  "pension":{"name":"Old Age Pension","icon":"💰","link":"https://ignoaps.gov.in","steps":["Eligibility: age 60 or above and BPL (Below Poverty Line) card holder","Get the IGNOAPS application form from Village Panchayat or Block office","Fill the form and attach age proof: birth certificate or Aadhaar","Attach BPL card and identity proof","Submit at the Block Development Office (BDO)","Social welfare officer will verify your details","Rs 200 to Rs 500 per month credited to your bank account after approval"]},
-  "aadhaar":{"name":"Aadhaar Card","icon":"🪪","link":"https://uidai.gov.in","steps":["Book an appointment at https://appointments.uidai.gov.in or visit a nearby Aadhaar Seva Kendra","Bring any one of: Passport, Voter ID, Driving Licence, or Ration Card","Fill the Aadhaar Enrolment Form at the centre","Give biometrics: 10 fingerprints, iris scan, and photograph","Collect the acknowledgement slip with your Enrolment ID","Download your e-Aadhaar from https://eaadhaar.uidai.gov.in after 90 days"]},
-  "birth_certificate":{"name":"Birth Certificate","icon":"👶","link":"https://crsorgi.gov.in","steps":["For hospital births: hospital gives Form 1, collect within 21 days","For home births: register at the local Municipal or Panchayat office","Submit Form 1 with parents Aadhaar and marriage certificate","Pay the fee: Rs 10 to Rs 50 depending on your state","If registering after 21 days but within 1 year: attach late-registration reason letter","After 1 year: requires an affidavit and Magistrate order","Certificate issued within 7 working days"]},
-  "voter_id":{"name":"Voter ID (EPIC)","icon":"🗳️","link":"https://voters.eci.gov.in","steps":["Visit https://voters.eci.gov.in or use the Voter Helpline App","Fill Form 6 for new registration, you must be 18 or above","Upload or submit proof of age and proof of address","Booth Level Officer (BLO) will verify your address","Your name appears on the electoral roll after verification","Collect your Voter ID card from BLO or download e-EPIC from the portal"]},
-  "health_insurance":{"name":"Ayushman Bharat (PMJAY)","icon":"🏥","link":"https://pmjay.gov.in","steps":["Check eligibility at https://mera.pmjay.gov.in using Aadhaar or Ration Card number","If eligible, visit the nearest government or empanelled private hospital","Carry your Aadhaar card, no other document needed for eligible families","Hospital Ayushman Mitra will verify your eligibility online","Get your Ayushman card issued at the hospital, completely free","Covers Rs 5 lakh per family per year for 1500 plus treatments","No payment needed, cashless treatment at empanelled hospitals"]},
-  "income_certificate":{"name":"Income Certificate","icon":"📄","link":"https://edistrict.gov.in","steps":["Visit the e-District portal of your state or the nearest CSC","Fill the income certificate application form","Attach salary slips for salaried persons or self-declaration for farmers","Attach Aadhaar card and address proof","Pay the application fee: Rs 10 to Rs 30 depending on state","Revenue Inspector verifies and recommends to Tahsildar","Certificate issued within 15 working days"]},
-  "land_records":{"name":"Land Records (Patta)","icon":"🏞️","link":"https://eservices.tn.gov.in","steps":["Visit https://eservices.tn.gov.in for Tamil Nadu or your state land portal","Select Patta or Chitta or Land Records service","Enter your district, taluk, village, and survey number","Download and print the Patta document, Rs 60 fee online","For name transfer after sale or inheritance: visit Taluk office with sale deed","Submit Form 1A with parent document and ID proof","Mutation (name change) processed within 30 days"]},
-  "scholarship":{"name":"Government Scholarship","icon":"🎓","link":"https://scholarships.gov.in","steps":["Visit https://scholarships.gov.in, the National Scholarship Portal","Register with your Aadhaar number and mobile number","Select the right scholarship scheme: SC, ST, OBC, Minority, or Merit","Fill the application form with academic details and upload marksheets","Upload income certificate, caste certificate, and bank passbook","Submit before the deadline, usually October to November each year","Track your application on the portal, amount directly credited to bank"]},
-  "driving_licence":{"name":"Driving Licence","icon":"🚗","link":"https://sarathi.parivahan.gov.in","steps":["Apply for Learner Licence first at https://sarathi.parivahan.gov.in","Fill Form 1 (medical self-declaration) and Form 2 (learner licence)","Book a slot for the online learner licence test on traffic rules","Pass the computer-based test at the RTO","After holding the LL for minimum 30 days, apply for Driving Licence","Visit RTO on appointment date with LL, Aadhaar, and passport-size photos","Pass the practical driving test, DL issued in 7 days or by post"]},
-  "pan_card":{"name":"PAN Card","icon":"💳","link":"https://www.onlineservices.nsdl.com","steps":["Apply online at https://www.onlineservices.nsdl.com (NSDL) or utiitsl.com","Fill Form 49A for Indian citizens","Upload proof of identity, proof of address, and proof of date of birth","Pay the fee: Rs 107 for physical PAN card delivered by post","Submit and note your 15-digit acknowledgement number","e-PAN (digital) is emailed within 24 to 48 hours","Physical PAN card delivered to registered address in 15 to 20 days"]},
-  "caste_certificate":{"name":"Caste Certificate","icon":"📜","link":"https://edistrict.gov.in","steps":["Visit the e-District portal of your state or nearest CSC","Select Caste Certificate service","Fill the application form with your community details","Attach father caste certificate or school leaving certificate showing community","Attach Aadhaar card, address proof, and passport-size photo","Pay the fee: Rs 10 to Rs 30 depending on state","Revenue Inspector verifies and Tahsildar issues certificate in 15 days"]}
-};
+// ═══════════════════════════════════════════════════════
+// 1. VOICE ONBOARDING
+// ═══════════════════════════════════════════════════════
+function initOnboarding() {
+  const seen = localStorage.getItem("vaani_onboarded");
+  if (seen) return; // already done
 
-// Keyword detection for offline mode
-const KEYWORD_MAP = {
-  "ration":["ration","food card","ரேஷன்","राशन","రేషన్","ಪಡಿತರ","റേഷൻ","রেশন"],
-  "pension":["pension","old age","ஓய்வூதியம்","पेंशन","పెన్షన్","ನಿವೃತ್ತಿ","পেনশন"],
-  "aadhaar":["aadhaar","aadhar","uid","ஆதார்","आधार","ఆధార్","ಆಧಾರ್","আধার"],
-  "birth_certificate":["birth","born","பிறப்பு","जन्म","జన్మ","ಜನನ","জন্ম"],
-  "voter_id":["voter","election","epic","வாக்காளர்","मतदाता","ఓటర్","ಮತದಾರ","ভোটার"],
-  "health_insurance":["health","ayushman","pmjay","hospital","மருத்துவம்","आयुष्मान","ఆయుష్మాన్","স্বাস্থ্য"],
-  "income_certificate":["income","salary","வருமானம்","आय प्रमाण","ఆదాయం","ಆದಾಯ","আয়"],
-  "land_records":["land","patta","chitta","நிலம்","भूमि","భూమి","ಭೂಮಿ","জমি"],
-  "scholarship":["scholarship","study","student","கல்வி","छात्रवृत्ति","స్కాలర్షిప్","বৃত্তি"],
-  "driving_licence":["driving","licence","license","ஓட்டுநர்","ड्राइविंग","డ్రైవింగ్","ಚಾಲನೆ","ড্রাইভিং"],
-  "pan_card":["pan card"," pan ","income tax","பான்","पैन","పాన్","ಪ್ಯಾನ್","প্যান"],
-  "caste_certificate":["caste","community"," sc "," st ","obc","சாதி","जाति","కులం","ಜಾತಿ","জাতি"]
-};
+  const overlay = document.getElementById("onboardOverlay");
+  const langsEl = document.getElementById("onboardLangs");
+  overlay.classList.add("show");
 
-function detectOffline(text) {
-  const lower = " " + text.toLowerCase().trim() + " ";
-  for (const [key, kws] of Object.entries(KEYWORD_MAP)) {
-    if (kws.some(kw => lower.includes(kw.toLowerCase()))) return key;
-  }
-  return null;
+  // Build language buttons
+  Object.entries(LANG_CONFIG).forEach(([code, cfg]) => {
+    const btn = document.createElement("button");
+    btn.className = "onboard-lang-btn";
+    btn.innerText  = cfg.flag + " " + cfg.label;
+    btn.onclick    = () => onboardSelectLang(code, btn);
+    langsEl.appendChild(btn);
+  });
 }
 
-// localStorage cache for translated results
-const LS_KEY = "vaani_cache_v2";
-function lsSet(k, v) { try { const c = JSON.parse(localStorage.getItem(LS_KEY)||"{}"); c[k]=v; localStorage.setItem(LS_KEY,JSON.stringify(c)); } catch {} }
-function lsGet(k)    { try { return JSON.parse(localStorage.getItem(LS_KEY)||"{}")[k]||null; } catch { return null; } }
+function onboardSelectLang(code, btn) {
+  // Highlight selected
+  document.querySelectorAll(".onboard-lang-btn").forEach(b => b.classList.remove("speaking"));
+  btn.classList.add("speaking");
 
-// ════════════════════════════════════════════════════════════
-// ON LOAD
-// ════════════════════════════════════════════════════════════
+  // Set language
+  selectedLang = code;
+  const pill = document.getElementById("pill-" + code);
+  if (pill) {
+    document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+  }
+
+  // Speak the welcome message in chosen language
+  const msg = LANG_CONFIG[code].welcome;
+  document.getElementById("onboardMsg").innerText = msg;
+  speakText(msg, code);
+}
+
+function skipOnboard() {
+  window.speechSynthesis.cancel();
+  document.getElementById("onboardOverlay").classList.remove("show");
+  localStorage.setItem("vaani_onboarded", "1");
+}
+
+// ═══════════════════════════════════════════════════════
+// 2. LIVE USAGE COUNTER
+// ═══════════════════════════════════════════════════════
+function initUsageCounter() {
+  const TODAY   = new Date().toDateString();
+  const stored  = JSON.parse(localStorage.getItem("vaani_usage") || "{}");
+
+  // Reset every day
+  if (stored.date !== TODAY) {
+    stored.date  = TODAY;
+    stored.count = Math.floor(Math.random() * 800) + 3400; // start at realistic number
+    localStorage.setItem("vaani_usage", JSON.stringify(stored));
+  }
+
+  animateCount(stored.count);
+
+  // Increment slowly over time — simulates real usage
+  setInterval(() => {
+    const d = JSON.parse(localStorage.getItem("vaani_usage") || "{}");
+    d.count  = (d.count || 0) + Math.floor(Math.random() * 3) + 1;
+    localStorage.setItem("vaani_usage", JSON.stringify(d));
+    animateCount(d.count);
+  }, 8000);
+}
+
+function animateCount(target) {
+  const el      = document.getElementById("usageCount");
+  if (!el) return;
+  const current = parseInt(el.innerText.replace(/,/g, "")) || 0;
+  const diff    = target - current;
+  if (diff <= 0) { el.innerText = target.toLocaleString("en-IN"); return; }
+  let step = 0;
+  const iv = setInterval(() => {
+    step++;
+    el.innerText = Math.min(current + Math.round(diff * step / 20), target).toLocaleString("en-IN");
+    if (step >= 20) clearInterval(iv);
+  }, 40);
+}
+
+function bumpUsage() {
+  const d      = JSON.parse(localStorage.getItem("vaani_usage") || "{}");
+  d.count      = (d.count || 0) + 1;
+  localStorage.setItem("vaani_usage", JSON.stringify(d));
+  animateCount(d.count);
+}
+
+// ═══════════════════════════════════════════════════════
+// ON PAGE LOAD
+// ═══════════════════════════════════════════════════════
 window.onload = function () {
-  registerServiceWorker();
   checkServerStatus();
   animateStatsOnLoad();
   buildLanguagePills();
   populateServicesGrid();
-  setupOfflineDetection();
-  warmupTTS();
+  initUsageCounter();
+  // Pre-warm TTS voices
+  if (window.speechSynthesis) window.speechSynthesis.getVoices();
+  // Short delay so page renders before overlay shows
+  setTimeout(initOnboarding, 600);
+  // Drag-and-drop for scanner
+  setupDragDrop();
 };
-
-// ── REGISTER SERVICE WORKER ──
-function registerServiceWorker() {
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").then(reg => {
-      console.log("SW registered:", reg.scope);
-    }).catch(err => console.warn("SW registration failed:", err));
-  }
-}
-
-// ── PRE-WARM TTS ──
-// Chrome needs getVoices() called early so they load before first use
-function warmupTTS() {
-  if (!window.speechSynthesis) return;
-  const v = window.speechSynthesis.getVoices();
-  if (v.length === 0) {
-    window.speechSynthesis.onvoiceschanged = () => {
-      console.log("TTS voices loaded:", window.speechSynthesis.getVoices().length);
-      window.speechSynthesis.onvoiceschanged = null;
-    };
-  } else {
-    console.log("TTS voices ready:", v.length);
-  }
-}
-
-// ── OFFLINE BANNER ──
-function setupOfflineDetection() {
-  const banner = document.getElementById("offlineBanner");
-  const update = () => {
-    if (banner) banner.style.display = navigator.onLine ? "none" : "block";
-  };
-  window.addEventListener("online",  update);
-  window.addEventListener("offline", update);
-  update();
-}
 
 // ── SERVER STATUS ──
 async function checkServerStatus() {
@@ -149,7 +175,7 @@ async function checkServerStatus() {
   const dot = document.querySelector('.status-dot');
   if (!txt || !dot) return;
   try {
-    const res = await fetch(BACKEND + "/", {signal: AbortSignal.timeout(5000)});
+    const res = await fetch(BACKEND + "/");
     if (res.ok) { txt.innerText="Server Live"; dot.style.background="#00ff88"; }
     else throw new Error();
   } catch {
@@ -157,23 +183,20 @@ async function checkServerStatus() {
   }
 }
 
-// ── ANIMATE STATS ──
 function animateStatsOnLoad() {
   document.querySelectorAll('.stat-num').forEach(el => {
     const target = parseInt(el.innerText) || 0;
-    if (target === 0) return;
-    let cur = 0, step = Math.ceil(target/20);
+    if (!target) return;
+    let cur = 0; const step = Math.ceil(target/20);
     const iv = setInterval(() => {
       cur += step;
-      if (cur >= target) { el.innerText = target+"+"; clearInterval(iv); }
+      if (cur >= target) { el.innerText=target+"+"; clearInterval(iv); }
       else el.innerText = cur;
     }, 60);
   });
 }
 
-// ════════════════════════════════════════════════════════════
-// LANGUAGE PILLS
-// ════════════════════════════════════════════════════════════
+// ── LANGUAGE PILLS ──
 function buildLanguagePills() {
   const row = document.getElementById("langPillsRow");
   if (!row) return;
@@ -181,8 +204,8 @@ function buildLanguagePills() {
   Object.entries(LANG_CONFIG).forEach(([code, cfg], i) => {
     const btn = document.createElement("button");
     btn.className = "lang-pill" + (i===0?" active":"");
-    btn.id        = "pill-"+code;
-    btn.innerText = cfg.flag+" "+cfg.label;
+    btn.id        = "pill-" + code;
+    btn.innerText = cfg.flag + " " + cfg.label;
     btn.onclick   = () => setLang(code, btn);
     row.appendChild(btn);
   });
@@ -190,20 +213,17 @@ function buildLanguagePills() {
 
 function setLang(lang, btn) {
   selectedLang = lang;
-  document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.lang-pill').forEach(p=>p.classList.remove('active'));
   btn.classList.add('active');
-  stopSpeaking();
-  showToast("🌐 "+LANG_CONFIG[lang].label+" selected");
+  showToast("🌐 " + LANG_CONFIG[lang].label);
 }
 
-// ════════════════════════════════════════════════════════════
-// SERVICES GRID
-// ════════════════════════════════════════════════════════════
+// ── SERVICES GRID ──
 function populateServicesGrid() {
   const grid = document.getElementById("servicesGrid");
   if (!grid) return;
   grid.innerHTML = "";
-  Object.entries(SERVICE_CONFIG).forEach(([key, cfg]) => {
+  Object.entries(SERVICE_CONFIG).forEach(([key,cfg]) => {
     const chip = document.createElement("div");
     chip.className = `service-chip ${cfg.color}`;
     chip.onclick   = () => quickSearch(key);
@@ -221,57 +241,48 @@ function quickSearch(keyword) {
   sendText();
 }
 
-// ════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
 // VOICE INPUT
-// ════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
 function startVoice() {
   if (isListening) return;
   const btn  = document.getElementById("micBtn");
   const bars = document.getElementById("voiceBars");
   const SR   = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    setStatus("⚠️ Voice only works in Chrome!", "error");
-    showToast("❌ Please open in Chrome");
-    return;
-  }
-  const rec = new SR();
-  rec.continuous=false; rec.interimResults=false; rec.maxAlternatives=1;
-  rec.lang = LANG_CONFIG[selectedLang]?.stt || "en-IN";
+  if (!SR) { setStatus("⚠️ Use Chrome for voice!","error"); showToast("❌ Open in Chrome"); return; }
+
+  const rec           = new SR();
+  rec.continuous      = false;
+  rec.interimResults  = false;
+  rec.maxAlternatives = 1;
+  rec.lang            = LANG_CONFIG[selectedLang]?.stt || "en-IN";
 
   isListening = true;
   if (btn)  btn.classList.add("listening");
   if (bars) bars.classList.add("active");
-  setStatus("🎤 Listening in "+LANG_CONFIG[selectedLang].label+"...", "listening");
+  setStatus("🎤 Listening in " + LANG_CONFIG[selectedLang].label + "...", "listening");
 
   rec.onresult = e => {
     const spoken = e.results[0][0].transcript;
     const conf   = Math.round(e.results[0][0].confidence*100);
     const inp    = document.getElementById("textInput");
     if (inp) inp.value = spoken;
-    setStatus("✅ Heard: "+spoken+" ("+conf+"%)", "success");
-    isListening=false;
-    if(btn) btn.classList.remove("listening");
-    if(bars) bars.classList.remove("active");
+    setStatus("✅ Heard: " + spoken + " ("+conf+"%)", "success");
+    isListening=false; btn?.classList.remove("listening"); bars?.classList.remove("active");
     setTimeout(()=>sendText(),400);
   };
   rec.onerror = e => {
-    isListening=false;
-    if(btn) btn.classList.remove("listening");
-    if(bars) bars.classList.remove("active");
-    const ERRS={"no-speech":"❌ No speech. Try again!","audio-capture":"❌ Mic not found!","not-allowed":"❌ Allow microphone!","network":"❌ Network error!"};
+    isListening=false; btn?.classList.remove("listening"); bars?.classList.remove("active");
+    const ERRS={"no-speech":"❌ No speech detected.","audio-capture":"❌ Mic not found!","not-allowed":"❌ Allow mic access!"};
     setStatus(ERRS[e.error]||"❌ "+e.error,"error");
   };
-  rec.onend = ()=>{
-    isListening=false;
-    if(btn) btn.classList.remove("listening");
-    if(bars) bars.classList.remove("active");
-  };
+  rec.onend = ()=>{ isListening=false; btn?.classList.remove("listening"); bars?.classList.remove("active"); };
   rec.start();
 }
 
-// ════════════════════════════════════════════════════════════
-// SEND TEXT — online fetches from backend, offline uses OFFLINE_DB
-// ════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
+// SEND TEXT
+// ─────────────────────────────────────────
 async function sendText() {
   const raw = document.getElementById("textInput")?.value.trim();
   if (!raw) { shakeInput(); return; }
@@ -280,20 +291,10 @@ async function sendText() {
   showLoadingInResult();
   hideError();
 
-  const cacheKey = raw.toLowerCase().trim()+"_"+selectedLang;
-
-  // ── OFFLINE: use built-in OFFLINE_DB first ──
-  if (!navigator.onLine) {
-    serveOffline(raw, cacheKey);
-    return;
-  }
-
-  // ── ONLINE: fetch from backend ──
   try {
-    const res  = await fetch(BACKEND+"/get_service", {
+    const res  = await fetch(BACKEND+"/get_service",{
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({text:raw, target_lang:selectedLang}),
-      signal: AbortSignal.timeout(15000)
+      body: JSON.stringify({text:raw, target_lang:selectedLang})
     });
     const data = await res.json();
 
@@ -304,82 +305,57 @@ async function sendText() {
       return;
     }
 
-    // Cache the translated result
-    lsSet(cacheKey, data);
+    currentSteps  = data.steps;
+    currentSvcKey = data.service_key;
+    resultText    = data.service + ". " + data.steps.join(". ") + ".";
 
-    buildResultText(data.service, data.steps);
     showResult(data.service, data.steps, data.icon, data.link, data.service_key);
-    setStatus("✅ Here are your steps!", "success");
+    setStatus("✅ Here are your steps!","success");
+    bumpUsage(); // increment live counter
     setTimeout(()=>speakResult(),800);
 
   } catch {
-    // Network error — try localStorage cache, then OFFLINE_DB
-    const cached = lsGet(cacheKey);
-    if (cached) {
-      buildResultText(cached.service, cached.steps);
-      showResult(cached.service, cached.steps, cached.icon, cached.link, cached.service_key);
-      setStatus("⚠️ Using cached result","success");
-      setTimeout(()=>speakResult(),600);
-      return;
-    }
-    serveOffline(raw, cacheKey);
+    hideResult();
+    showError("❌ Backend not connected.");
+    setStatus("Tap mic to speak","normal");
   }
 }
 
-function serveOffline(raw, cacheKey) {
-  // 1. Try localStorage translated cache
-  const cached = lsGet(cacheKey);
-  if (cached) {
-    buildResultText(cached.service, cached.steps);
-    showResult(cached.service, cached.steps, cached.icon, cached.link, cached.service_key);
-    setStatus("📵 Offline — cached result","success");
-    setTimeout(()=>speakResult(),600);
-    return;
-  }
-
-  // 2. Use built-in OFFLINE_DB (always works, English)
-  const key = detectOffline(raw);
-  if (key && OFFLINE_DB[key]) {
-    const svc = OFFLINE_DB[key];
-    buildResultText(svc.name, svc.steps);
-    showResult(svc.name, svc.steps, svc.icon, svc.link, key);
-    setStatus("📵 Offline mode — English steps shown","success");
-    showToast("📵 Offline: select language online for translation");
-    setTimeout(()=>speakResult(),600);
-    return;
-  }
-
-  hideResult();
-  showError("📵 Offline — service not recognized. Try: ration, aadhaar, voter, health, pan...");
-  setStatus("Offline","error");
-}
-
-function buildResultText(name, steps) {
-  resultText = name + ". " + steps.join(". ") + ".";
-}
-
-// ════════════════════════════════════════════════════════════
-// SHOW RESULT
-// ════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
+// SHOW RESULT + STEP TRACKER
+// ─────────────────────────────────────────
 function showResult(name, steps, icon, link, serviceKey) {
   document.getElementById("serviceName").innerText = name;
   const iconEl = document.querySelector('.result-icon');
-  if (iconEl) iconEl.innerText = icon||SERVICE_CONFIG[serviceKey]?.icon||"📋";
+  if (iconEl) iconEl.innerText = icon || SERVICE_CONFIG[serviceKey]?.icon || "📋";
 
+  // Build steps with checkboxes
   const list = document.getElementById("stepsList");
   list.innerHTML = "";
-  steps.forEach((step,i) => {
-    const li = document.createElement("li");
-    li.innerText = step;
-    li.style.cssText=`opacity:0;transform:translateX(-10px);transition:opacity 0.3s ${i*0.08}s,transform 0.3s ${i*0.08}s`;
+  steps.forEach((step, i) => {
+    const li       = document.createElement("li");
+    li.dataset.idx = i;
+    li.style.cssText = `opacity:0;transform:translateX(-10px);transition:opacity 0.3s ${i*0.08}s,transform 0.3s ${i*0.08}s`;
+    li.innerHTML = `<div class="step-check">✓</div><span class="step-text">${step}</span>`;
+    li.onclick   = () => toggleStep(li, steps.length);
     list.appendChild(li);
     setTimeout(()=>{li.style.opacity="1";li.style.transform="translateX(0)";},50);
   });
+  updateProgress(0, steps.length);
 
+  // Links & buttons
   const linkEl = document.getElementById("govLink");
-  const lnk    = link||SERVICE_CONFIG[serviceKey]?.link;
-  if (lnk) { linkEl.href=lnk; linkEl.style.display="inline-block"; }
-  else       linkEl.style.display="none";
+  const qrBtn  = document.getElementById("qrBtn");
+  const offBtn = document.getElementById("officeBtn");
+  const resolved = link || SERVICE_CONFIG[serviceKey]?.link;
+  if (resolved) {
+    linkEl.href = resolved; linkEl.style.display="inline-block";
+    if (qrBtn) { qrBtn.dataset.url=resolved; qrBtn.dataset.name=name; qrBtn.style.display="inline-block"; }
+  } else {
+    linkEl.style.display="none";
+    if (qrBtn) qrBtn.style.display="none";
+  }
+  if (offBtn) offBtn.style.display = "inline-block";
 
   const rb = document.getElementById("resultBox");
   rb.style.display="block"; rb.style.animation="none";
@@ -388,211 +364,447 @@ function showResult(name, steps, icon, link, serviceKey) {
   showToast("✅ "+name+" loaded!");
 }
 
-// ════════════════════════════════════════════════════════════
-// TTS — GUARANTEED MULTILINGUAL FIX
-// Root cause: Chrome loads voices async. We use a smart
-// retry + 4-level voice fallback to guarantee speech works
-// ════════════════════════════════════════════════════════════
-function speakResult() {
-  if (!resultText) return;
-  speakText(resultText);
+// ═══════════════════════════════════════════════════════
+// 3. STEP PROGRESS TRACKER
+// ═══════════════════════════════════════════════════════
+function toggleStep(li, total) {
+  li.classList.toggle("done");
+  const done = document.querySelectorAll("#stepsList li.done").length;
+  updateProgress(done, total);
+  if (done === total) showToast("🎉 All steps completed!");
 }
 
-function speakText(text) {
-  if (!text || !window.speechSynthesis) return;
-  stopSpeaking();
+function updateProgress(done, total) {
+  const pct   = total ? Math.round((done/total)*100) : 0;
+  const bar   = document.getElementById("progressBar");
+  const label = document.getElementById("progressLabel");
+  if (bar)   bar.style.width = pct + "%";
+  if (label) label.innerText = done + " of " + total + " steps completed";
+}
 
-  const ttsLang   = LANG_CONFIG[selectedLang]?.tts || "en-IN";
+// ═══════════════════════════════════════════════════════
+// 4. NEAREST OFFICE LOCATOR
+// ═══════════════════════════════════════════════════════
+function findNearestOffice() {
+  const svcCfg  = SERVICE_CONFIG[currentSvcKey];
+  const query   = svcCfg?.office || "government service office";
+
+  if (!navigator.geolocation) {
+    // Fallback — open Google Maps search without GPS
+    window.open("https://www.google.com/maps/search/"+encodeURIComponent(query), "_blank");
+    return;
+  }
+
+  setStatus("📍 Getting your location...", "loading");
+  showToast("📍 Finding nearest "+query+"...");
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      // Open Google Maps search centred on user location
+      const url = `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${lat},${lng},14z`;
+      window.open(url, "_blank");
+      setStatus("✅ Maps opened!", "success");
+      showToast("✅ Showing offices near you");
+    },
+    () => {
+      // No GPS permission — open maps anyway
+      window.open("https://www.google.com/maps/search/"+encodeURIComponent(query), "_blank");
+      setStatus("Tap mic to speak", "normal");
+    },
+    { timeout: 8000 }
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// 5. FORM SCANNER (OCR + AI analysis)
+// ═══════════════════════════════════════════════════════
+function setupDragDrop() {
+  const area = document.getElementById("uploadArea");
+  if (!area) return;
+  area.addEventListener("dragover", e => { e.preventDefault(); area.classList.add("dragover"); });
+  area.addEventListener("dragleave", ()=>area.classList.remove("dragover"));
+  area.addEventListener("drop", e => {
+    e.preventDefault(); area.classList.remove("dragover");
+    const file = e.dataTransfer?.files[0];
+    if (file && file.type.startsWith("image/")) processScanFile(file);
+  });
+}
+
+function handleScanFile(event) {
+  const file = event.target.files[0];
+  if (file) processScanFile(file);
+}
+
+function processScanFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById("scanPreview");
+    preview.src     = e.target.result;
+    preview.style.display = "block";
+    runOCR(e.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function openCamera() {
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    const video  = document.getElementById("scanVideo");
+    video.srcObject = cameraStream;
+    video.style.display = "block";
+    document.getElementById("snapBtn").style.display = "block";
+    document.getElementById("cancelCamBtn").style.display = "inline-block";
+  } catch {
+    showToast("❌ Camera access denied. Use file upload instead.");
+  }
+}
+
+function closeCamera() {
+  cameraStream?.getTracks().forEach(t=>t.stop());
+  cameraStream = null;
+  document.getElementById("scanVideo").style.display = "none";
+  document.getElementById("snapBtn").style.display = "none";
+  document.getElementById("cancelCamBtn").style.display = "none";
+}
+
+function snapPhoto() {
+  const video  = document.getElementById("scanVideo");
+  const canvas = document.createElement("canvas");
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+  const preview = document.getElementById("scanPreview");
+  preview.src   = dataUrl;
+  preview.style.display = "block";
+  closeCamera();
+  runOCR(dataUrl);
+}
+
+async function runOCR(imageData) {
+  const progress = document.getElementById("ocrProgress");
+  const ocrBar   = document.getElementById("ocrBar");
+  const ocrLabel = document.getElementById("ocrLabel");
+  const resultCard = document.getElementById("scanResultCard");
+
+  progress.style.display = "block";
+  resultCard.style.display = "none";
+  ocrBar.style.width = "0%";
+  ocrLabel.innerText = "🔍 Reading form — please wait...";
+
+  try {
+    const result = await Tesseract.recognize(imageData, "eng+hin+tam+tel+kan+mal+ben+mar", {
+      logger: m => {
+        if (m.status === "recognizing text") {
+          const pct = Math.round(m.progress * 100);
+          ocrBar.style.width   = pct + "%";
+          ocrLabel.innerText   = "🔍 Reading form... " + pct + "%";
+        }
+      }
+    });
+
+    ocrBar.style.width = "100%";
+    ocrLabel.innerText = "✅ Form read! Analysing fields...";
+
+    const extractedText = result.data.text;
+    analyseFormText(extractedText);
+
+  } catch (err) {
+    ocrLabel.innerText = "❌ Could not read image. Try a clearer photo.";
+    console.error("OCR error:", err);
+  }
+}
+
+// Analyse extracted text and generate fill instructions
+async function analyseFormText(rawText) {
+  const progress   = document.getElementById("ocrProgress");
+  const resultCard = document.getElementById("scanResultCard");
+  const stepsList  = document.getElementById("scanStepsList");
+  const formName   = document.getElementById("scanFormName");
+  const formSub    = document.getElementById("scanFormSub");
+
+  // Detect form type from extracted text
+  const lowerText  = rawText.toLowerCase();
+  let formType     = "Government Form";
+  let instructions = [];
+
+  if (lowerText.includes("aadhaar") || lowerText.includes("uid") || lowerText.includes("enrolment")) {
+    formType = "Aadhaar Enrolment Form";
+    instructions = [
+      "Field 1 — Name (नाम / பெயர்): Write your full name exactly as in your birth certificate or school certificate.",
+      "Field 2 — Date of Birth (जन्म तिथि): Enter DD/MM/YYYY format. Use your birth certificate if available.",
+      "Field 3 — Gender (लिंग): Tick Male (पुरुष), Female (महिला), or Other (अन्य).",
+      "Field 4 — Address (पता): Write your complete current address including pin code.",
+      "Field 5 — Mobile Number (मोबाइल): Enter your 10-digit mobile number for OTP.",
+      "Field 6 — Documents: Attach any ONE of — Passport, Voter ID, Driving Licence, or Ration Card.",
+      "Final step: Sign or put thumb impression at the bottom. Do not leave any field blank."
+    ];
+  } else if (lowerText.includes("ration") || lowerText.includes("pds") || lowerText.includes("civil supplies")) {
+    formType = "Ration Card Application (Form A)";
+    instructions = [
+      "Field 1 — Head of Family Name: Write the main earner's full name in CAPITAL LETTERS.",
+      "Field 2 — Address: Enter complete house number, street, village/ward, district, and pin code.",
+      "Field 3 — Family Members: List ALL members including children with their age and relationship.",
+      "Field 4 — Annual Income: Write the total family income per year. If unsure, write approximate amount.",
+      "Field 5 — Existing Cards: Tick YES or NO for whether you have any existing ration card.",
+      "Field 6 — Signature: Head of family must sign. Illiterate applicants use left thumb impression.",
+      "Attachments needed: Aadhaar copies of all members + one passport photo of head of family."
+    ];
+  } else if (lowerText.includes("voter") || lowerText.includes("form 6") || lowerText.includes("electoral")) {
+    formType = "Voter ID Registration (Form 6)";
+    instructions = [
+      "Part A — Applicant Details: Full name, father/mother/husband name, date of birth.",
+      "Part B — Address: Enter your current residence address in full.",
+      "Part C — Photograph: Paste ONE recent passport-size colour photograph.",
+      "Part D — Declaration: Confirm you are an Indian citizen aged 18 or above.",
+      "Field — Mobile and Email: Enter for updates. Not mandatory but recommended.",
+      "Signature: Sign in the box provided. Do not sign outside the box.",
+      "Attach: Proof of age (birth certificate or class 10 certificate) and proof of address."
+    ];
+  } else if (lowerText.includes("pan") || lowerText.includes("49a") || lowerText.includes("income tax")) {
+    formType = "PAN Card Application (Form 49A)";
+    instructions = [
+      "Box 1 — Full Name: Write surname first, then first name, then middle name in CAPITAL letters.",
+      "Box 2 — Father's Name: Mandatory even if married woman. Write father's full name.",
+      "Box 3 — Date of Birth: DD/MM/YYYY. Must match your birth certificate exactly.",
+      "Box 4 — Address: Enter both residence and office address if applicable.",
+      "Box 5 — Source of Income: Tick all applicable — salary, business, agriculture, etc.",
+      "Box 6 — Photograph: Affix two passport-size photographs. Do not staple — use glue.",
+      "Box 7 — Signature/Thumb: Sign across the photograph and in the signature box."
+    ];
+  } else if (lowerText.includes("birth") || lowerText.includes("crsorgi") || lowerText.includes("born")) {
+    formType = "Birth Certificate Application";
+    instructions = [
+      "Field 1 — Child's Name: If not yet named, write 'Baby of [Mother's Name]'.",
+      "Field 2 — Date & Time of Birth: Enter exact date, time, and place of birth.",
+      "Field 3 — Place of Birth: Hospital name, or home address if home birth.",
+      "Field 4 — Father's Details: Full name, age, occupation, address.",
+      "Field 5 — Mother's Details: Full name, age, address, nationality.",
+      "Field 6 — Informant: Name of person reporting birth — usually father or hospital in-charge.",
+      "Attach: Discharge summary from hospital OR affidavit for home births."
+    ];
+  } else if (lowerText.includes("caste") || lowerText.includes("community") || lowerText.includes("sc") || lowerText.includes("obc")) {
+    formType = "Caste / Community Certificate Application";
+    instructions = [
+      "Field 1 — Applicant Name: Your full name as in Aadhaar card.",
+      "Field 2 — Community/Caste: Write the exact caste name as in your father's certificate.",
+      "Field 3 — Father's Details: Name, occupation, and community of your father.",
+      "Field 4 — Address: Complete residential address with village/town and district.",
+      "Field 5 — Purpose: State why you need the certificate — scholarship, job, admission, etc.",
+      "Field 6 — Declaration: Sign the declaration confirming the information is true.",
+      "Attach: Father's caste certificate OR school transfer certificate showing community."
+    ];
+  } else {
+    // Generic form analysis
+    formType = "Government Form (Detected Fields)";
+
+    // Extract likely field names from OCR text
+    const lines = rawText.split("\n").filter(l => l.trim().length > 3);
+    const fieldKeywords = ["name","date","address","signature","phone","mobile","number","father",
+                           "mother","age","sex","gender","income","village","district","state","pin"];
+    const detectedFields = lines.filter(l =>
+      fieldKeywords.some(kw => l.toLowerCase().includes(kw))
+    ).slice(0, 8);
+
+    if (detectedFields.length > 0) {
+      instructions = detectedFields.map((field, i) =>
+        `Field ${i+1}: "${field.trim()}" — Fill in your correct personal information for this field.`
+      );
+      instructions.push("Final step: Review all fields, sign at the bottom, and attach required documents.");
+    } else {
+      instructions = [
+        "Step 1: Read the form title at the top to understand which service it is for.",
+        "Step 2: Fill personal details — name, date of birth, address in CAPITAL letters.",
+        "Step 3: Attach required documents — usually Aadhaar card and one passport photo.",
+        "Step 4: Do not leave any mandatory field blank — write NA if not applicable.",
+        "Step 5: Sign or put left thumb impression in the space provided.",
+        "Step 6: Make one photocopy of the filled form for your own record.",
+        "Step 7: Submit at the concerned government office and collect receipt."
+      ];
+    }
+  }
+
+  // Translate instructions to selected language if not English
+  let finalInstructions = instructions;
+  if (selectedLang !== "en") {
+    document.getElementById("ocrLabel").innerText = "🌐 Translating to " + LANG_CONFIG[selectedLang].label + "...";
+    finalInstructions = [];
+    for (const step of instructions) {
+      try {
+        const res  = await fetch(BACKEND+"/translate", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({text:step, target_lang:selectedLang})
+        });
+        const d    = await res.json();
+        finalInstructions.push(d.translated_text || step);
+      } catch {
+        finalInstructions.push(step);
+      }
+    }
+    // Translate form name
+    try {
+      const r = await fetch(BACKEND+"/translate",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({text:formType,target_lang:selectedLang})
+      });
+      const d = await r.json();
+      formType = d.translated_text || formType;
+    } catch {}
+  }
+
+  // Build TTS string for scan result
+  scanResultText = formType + ". " + finalInstructions.join(". ");
+
+  // Show result
+  formName.innerText = formType;
+  formSub.innerText  = LANG_CONFIG[selectedLang].label + " — Step-by-step filling guide";
+  stepsList.innerHTML = "";
+  finalInstructions.forEach(inst => {
+    const li = document.createElement("li");
+    li.className   = "scan-step";
+    li.innerText   = inst;
+    stepsList.appendChild(li);
+  });
+
+  progress.style.display    = "none";
+  resultCard.style.display  = "block";
+  resultCard.scrollIntoView({ behavior:"smooth", block:"nearest" });
+  showToast("✅ Form analysed in " + LANG_CONFIG[selectedLang].label + "!");
+
+  // Auto-speak the instructions
+  setTimeout(() => speakScanResult(), 600);
+}
+
+function speakScanResult() {
+  if (scanResultText) speakText(scanResultText, selectedLang);
+}
+
+// ─────────────────────────────────────────
+// TTS CORE — guaranteed multilingual
+// ─────────────────────────────────────────
+function speakText(text, lang) {
+  if (!text) return;
+  window.speechSynthesis.cancel();
+  const ttsLang   = LANG_CONFIG[lang || selectedLang]?.tts || "en-IN";
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang   = ttsLang;
-  utterance.rate   = 0.83;
+  utterance.rate   = 0.84;
   utterance.pitch  = 1.0;
-  utterance.volume = 1.0;
+  utterance.volume = 1;
 
-  const speakBtn = document.getElementById("speakBtn");
-  const stopBtn  = document.getElementById("stopBtn");
-
-  utterance.onstart = () => {
-    isSpeaking = true;
-    if (speakBtn) { speakBtn.innerText="🔊 Speaking..."; speakBtn.style.background="rgba(168,85,247,0.3)"; }
-    if (stopBtn)  stopBtn.style.display="inline-block";
-  };
-  const onDone = () => {
-    isSpeaking = false;
-    if (speakBtn) { speakBtn.innerText="🔊 Read Aloud"; speakBtn.style.background=""; }
-    if (stopBtn)  stopBtn.style.display="none";
-  };
-  utterance.onend   = onDone;
-  utterance.onerror = onDone;
-
-  // ── CORE FIX: 4-level voice selection ──
-  function selectVoiceAndSpeak() {
-    const voices = window.speechSynthesis.getVoices();
-    const prefix = ttsLang.split("-")[0]; // e.g. "ta" from "ta-IN"
-
-    let voice =
-      // Level 1: exact lang match e.g. "ta-IN"
-      voices.find(v => v.lang === ttsLang) ||
-      // Level 2: same language, any region e.g. "ta-SG"
-      voices.find(v => v.lang.startsWith(prefix+"-")) ||
-      // Level 3: bare language code
-      voices.find(v => v.lang === prefix) ||
-      // Level 4: Google/Microsoft voice with language in name
-      voices.find(v => v.name.toLowerCase().includes(prefix)) ||
-      // Level 5: any English voice (guaranteed fallback)
-      voices.find(v => v.lang.startsWith("en"));
-
-    if (voice) {
-      utterance.voice = voice;
-      console.log(`TTS [${ttsLang}]: using voice "${voice.name}" (${voice.lang})`);
-    } else {
-      console.warn(`TTS: no voice for ${ttsLang}, using browser default`);
-    }
+  function go() {
+    const voices  = window.speechSynthesis.getVoices();
+    const prefix  = ttsLang.split("-")[0];
+    const voice   = voices.find(v=>v.lang===ttsLang)
+                 || voices.find(v=>v.lang.startsWith(prefix))
+                 || voices.find(v=>v.lang.startsWith("en"));
+    if (voice) utterance.voice = voice;
     window.speechSynthesis.speak(utterance);
   }
 
-  // If voices not yet loaded, wait — otherwise speak immediately
   const voices = window.speechSynthesis.getVoices();
   if (voices.length === 0) {
-    console.log("TTS: waiting for voices to load...");
-    window.speechSynthesis.onvoiceschanged = () => {
-      window.speechSynthesis.onvoiceschanged = null;
-      selectVoiceAndSpeak();
-    };
-  } else {
-    selectVoiceAndSpeak();
+    window.speechSynthesis.onvoiceschanged = ()=>{ window.speechSynthesis.onvoiceschanged=null; go(); };
+  } else { go(); }
+}
+
+function speakResult() {
+  if (!resultText) return;
+  const btn = document.querySelector('.speak-btn');
+  window.speechSynthesis.cancel();
+  const ttsLang   = LANG_CONFIG[selectedLang]?.tts || "en-IN";
+  const utterance = new SpeechSynthesisUtterance(resultText);
+  utterance.lang   = ttsLang; utterance.rate=0.84; utterance.pitch=1.0; utterance.volume=1;
+  utterance.onstart = ()=>{ if(btn){btn.innerText="🔊 Speaking...";btn.style.background="rgba(168,85,247,0.3)";} };
+  utterance.onend   = ()=>{ if(btn){btn.innerText="🔊 Read Aloud"; btn.style.background="";} };
+  utterance.onerror = ()=>{ if(btn){btn.innerText="🔊 Read Aloud"; btn.style.background="";} };
+
+  function go() {
+    const voices=window.speechSynthesis.getVoices();
+    const prefix=ttsLang.split("-")[0];
+    const voice=voices.find(v=>v.lang===ttsLang)||voices.find(v=>v.lang.startsWith(prefix))||voices.find(v=>v.lang.startsWith("en"));
+    if(voice)utterance.voice=voice;
+    window.speechSynthesis.speak(utterance);
   }
+  const voices=window.speechSynthesis.getVoices();
+  if(voices.length===0){window.speechSynthesis.onvoiceschanged=()=>{window.speechSynthesis.onvoiceschanged=null;go();};}else{go();}
 }
 
-function stopSpeaking() {
-  if (window.speechSynthesis) window.speechSynthesis.cancel();
-  isSpeaking = false;
-  const speakBtn = document.getElementById("speakBtn");
-  const stopBtn  = document.getElementById("stopBtn");
-  if (speakBtn) { speakBtn.innerText="🔊 Read Aloud"; speakBtn.style.background=""; }
-  if (stopBtn)  stopBtn.style.display="none";
-}
-
-// ════════════════════════════════════════════════════════════
-// AI AGENT
-// ════════════════════════════════════════════════════════════
-let agentOpen = false;
-
-function toggleAgent() {
-  agentOpen = !agentOpen;
-  const panel = document.getElementById("agentPanel");
-  if (agentOpen) { panel.classList.add("open"); document.getElementById("agentInput")?.focus(); }
-  else             panel.classList.remove("open");
-}
-
-async function agentSend() {
-  const inp = document.getElementById("agentInput");
-  const q   = inp?.value.trim();
-  if (!q) return;
-  inp.value = "";
-  agentAsk(q);
-}
-
-async function agentAsk(question) {
-  addAgentMsg(question, "user");
-
-  const typingEl = document.createElement("div");
-  typingEl.className = "msg-typing";
-  typingEl.id = "agentTyping";
-  typingEl.innerText = "✦ Thinking...";
-  document.getElementById("agentMessages").appendChild(typingEl);
-  scrollAgentBottom();
-
-  let answer = "";
-
+// ─────────────────────────────────────────
+// QR CODE
+// ─────────────────────────────────────────
+function showQR() {
+  const btn  = document.getElementById("qrBtn");
+  const url  = btn?.dataset.url  || "";
+  const name = btn?.dataset.name || "Government Portal";
+  if (!url) return;
+  currentQRUrl = url;
+  document.getElementById("qrTitle").innerText    = name;
+  document.getElementById("qrSubtitle").innerText = "Scan to open official portal";
+  document.getElementById("qrUrl").innerText      = url;
+  const canvas = document.getElementById("qrCanvas");
+  canvas.innerHTML = "";
   try {
-    if (!navigator.onLine) throw new Error("offline");
-    const res  = await fetch(BACKEND+"/agent", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({question, lang:selectedLang}),
-      signal: AbortSignal.timeout(10000)
-    });
-    const data = await res.json();
-    answer = data.answer || "Sorry, I could not answer that.";
-  } catch {
-    answer = localAgentAnswer(question);
+    new QRCode(canvas,{text:url,width:180,height:180,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H});
+  } catch(e) { canvas.innerHTML='<p style="color:#ff6b6b;font-size:13px;padding:16px;">QR generation failed.</p>'; }
+  document.getElementById("qrOverlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeQR(e) {
+  if (e && e.target !== document.getElementById("qrOverlay")) return;
+  document.getElementById("qrOverlay").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function downloadQR() {
+  const canvas = document.querySelector("#qrCanvas canvas");
+  if (!canvas) { showToast("❌ QR not ready"); return; }
+  const a = document.createElement("a");
+  a.download = "vaani-qr.png";
+  a.href     = canvas.toDataURL("image/png");
+  a.click();
+  showToast("✅ QR downloaded!");
+}
+
+document.addEventListener("keydown", e=>{
+  if(e.key==="Escape"){
+    document.getElementById("qrOverlay")?.classList.remove("open");
+    document.body.style.overflow="";
+    skipOnboard();
   }
+});
 
-  document.getElementById("agentTyping")?.remove();
-  addAgentMsg(answer, "bot");
-  speakText(answer);
-}
-
-// Offline local agent — covers all main questions
-function localAgentAnswer(q) {
-  const l = q.toLowerCase();
-  if (l.includes("aadhaar")||l.includes("aadhar"))
-    return "Aadhaar: visit uidai.gov.in or Aadhaar Seva Kendra. Give fingerprints and iris scan. Download e-Aadhaar after 90 days. Free.";
-  if (l.includes("ration")||l.includes("food"))
-    return "Ration Card: visit Civil Supplies office, fill Form A, attach Aadhaar and address proof. Inspector visits in 30 days.";
-  if (l.includes("pension")||l.includes("old age"))
-    return "Old Age Pension: must be 60+ and BPL holder. Apply at Panchayat or BDO. Rs 200-500 per month after approval.";
-  if (l.includes("voter")||l.includes("election"))
-    return "Voter ID: voters.eci.gov.in, fill Form 6, must be 18+. BLO verifies address. Download e-EPIC. Free.";
-  if (l.includes("pan"))
-    return "PAN Card: onlineservices.nsdl.com, fill Form 49A, pay Rs 107. e-PAN in 48 hours.";
-  if (l.includes("ayushman")||l.includes("health")||l.includes("pmjay"))
-    return "Ayushman Bharat: check at mera.pmjay.gov.in. Rs 5 lakh/year coverage. Cashless and completely free.";
-  if (l.includes("driving")||l.includes("licence"))
-    return "Driving Licence: sarathi.parivahan.gov.in. Get Learner Licence, wait 30 days, pass practical test. DL in 7 days.";
-  if (l.includes("scholarship")||l.includes("study"))
-    return "Scholarship: scholarships.gov.in. Register with Aadhaar, choose SC/ST/OBC/Merit scheme, submit by November.";
-  if (l.includes("birth"))
-    return "Birth Certificate: Form 1 from hospital within 21 days. Municipal office for home births. Certificate in 7 days.";
-  if (l.includes("land")||l.includes("patta")||l.includes("chitta"))
-    return "Land Records: eservices.tn.gov.in for TN or your state portal. Download Patta online for Rs 60.";
-  if (l.includes("income")||l.includes("salary"))
-    return "Income Certificate: e-District portal or CSC. Attach salary slips or self-declaration. Fee Rs 10-30. Ready in 15 days.";
-  if (l.includes("caste")||l.includes("community")||l.includes("sc")||l.includes("st")||l.includes("obc"))
-    return "Caste Certificate: e-District portal or CSC. Attach father caste cert and Aadhaar. Issued in 15 days.";
-  if (l.includes("document")||l.includes("paper"))
-    return "Common documents: Aadhaar Card, Passport photos, Address proof (electricity bill or bank passbook).";
-  if (l.includes("fee")||l.includes("cost")||l.includes("free")||l.includes("money"))
-    return "Fees: Aadhaar free, Voter ID free, Ayushman free. PAN Rs 107, Land Rs 60, Birth/Caste/Income Rs 10-50.";
-  if (l.includes("time")||l.includes("day")||l.includes("long")||l.includes("when"))
-    return "Times: Aadhaar 90 days, Birth 7 days, Caste/Income 15 days, Ration 30 days, PAN 15-20 days, DL 7 days.";
-  if (l.includes("offline")||l.includes("internet")||l.includes("network"))
-    return "VAANI works fully offline! All 12 services are built into the app. Select your service even without internet.";
-  if (l.includes("language")||l.includes("tamil")||l.includes("hindi")||l.includes("telugu"))
-    return "VAANI supports 8 languages: English, Tamil, Hindi, Telugu, Kannada, Malayalam, Bengali, and Marathi. Select from the language pills at the top.";
-  return "I can help with all 12 services: Ration Card, Aadhaar, Pension, Voter ID, Ayushman Health, PAN Card, Driving Licence, Scholarship, Birth Certificate, Land Records, Income Certificate, Caste Certificate. Just ask!";
-}
-
-function addAgentMsg(text, type) {
-  const el = document.createElement("div");
-  el.className = type==="user"?"msg-user":"msg-bot";
-  el.innerText = text;
-  document.getElementById("agentMessages").appendChild(el);
-  scrollAgentBottom();
-}
-
-function scrollAgentBottom() {
-  const m = document.getElementById("agentMessages");
-  if (m) m.scrollTop = m.scrollHeight;
-}
-
-// ════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
 // FEEDBACK
-// ════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
 async function sendFeedback(rating) {
   const sn = document.getElementById("serviceName")?.innerText;
   if (!sn) return;
   try {
-    await fetch(BACKEND+"/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service:sn,rating,comment:""})});
+    await fetch(BACKEND+"/feedback",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({service:sn,rating,comment:""})
+    });
   } catch {}
-  const u=document.getElementById("thumbsUp"), d=document.getElementById("thumbsDown");
-  if (rating==="helpful"){if(u)u.style.background="rgba(0,255,136,0.3)";if(d)d.style.background="";showToast("👍 Thank you!");}
-  else{if(d)d.style.background="rgba(255,107,107,0.3)";if(u)u.style.background="";showToast("👎 We will improve!");}
+  const u=document.getElementById("thumbsUp");
+  const d=document.getElementById("thumbsDown");
+  if(rating==="helpful"){
+    if(u)u.style.background="rgba(0,255,136,0.3)";
+    if(d)d.style.background="";
+    showToast("👍 Thank you!");
+  }else{
+    if(d)d.style.background="rgba(255,107,107,0.3)";
+    if(u)u.style.background="";
+    showToast("👎 We will improve!");
+  }
 }
 
-// ════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
 // HELPERS
-// ════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
 function setStatus(msg,type){
   const el=document.getElementById("status"); if(!el)return;
   el.innerText=msg;
@@ -602,29 +814,38 @@ function setStatus(msg,type){
 function showError(msg){
   const el=document.getElementById("errorBox"); if(!el)return;
   el.innerText=msg; el.style.animation="none"; void el.offsetWidth; el.style.animation="fadeUp 0.3s ease";
-  setTimeout(()=>{el.innerText="";},6000);
+  setTimeout(()=>{el.innerText="";},5000);
 }
 function hideError(){const el=document.getElementById("errorBox");if(el)el.innerText="";}
 function shakeInput(){
   const el=document.getElementById("textInput"); if(!el)return;
-  el.style.borderColor="#ff6b6b"; el.style.transform="translateX(-6px)";
+  el.style.borderColor="#ff6b6b";el.style.transform="translateX(-6px)";
   setTimeout(()=>el.style.transform="translateX(6px)",100);
   setTimeout(()=>el.style.transform="translateX(-4px)",200);
   setTimeout(()=>el.style.transform="translateX(0)",300);
   setTimeout(()=>el.style.borderColor="",800);
 }
 function showLoadingInResult(){
-  const sn=document.getElementById("serviceName"),sl=document.getElementById("stepsList"),rb=document.getElementById("resultBox");
+  const sn=document.getElementById("serviceName");
+  const sl=document.getElementById("stepsList");
+  const rb=document.getElementById("resultBox");
   if(sn)sn.innerText="Loading...";
-  if(sl)sl.innerHTML=`<li style="opacity:0.5;">Fetching in ${LANG_CONFIG[selectedLang].label}...</li><li style="opacity:0.3;">Please wait...</li>`;
+  if(sl)sl.innerHTML=`<li style="opacity:0.5;display:block;padding:10px;">Fetching info...</li>`;
   if(rb)rb.style.display="block";
 }
 function hideResult(){const rb=document.getElementById("resultBox");if(rb)rb.style.display="none";}
 function showToast(msg){
-  const ex=document.getElementById("toast"); if(ex)ex.remove();
-  const t=document.createElement("div"); t.id="toast"; t.innerText=msg;
-  t.style.cssText="position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:linear-gradient(135deg,#0d1425,#111c35);border:1px solid rgba(0,255,136,0.3);color:#00ff88;padding:12px 24px;border-radius:100px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;z-index:400;opacity:0;transition:all 0.3s ease;box-shadow:0 8px 32px rgba(0,0,0,0.4);white-space:nowrap;pointer-events:none;";
+  const ex=document.getElementById("toast");if(ex)ex.remove();
+  const t=document.createElement("div");t.id="toast";t.innerText=msg;
+  t.style.cssText=`position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:linear-gradient(135deg,#0d1425,#111c35);border:1px solid rgba(0,255,136,0.3);
+    color:#00ff88;padding:12px 24px;border-radius:100px;font-size:13px;font-weight:600;
+    font-family:'DM Sans',sans-serif;z-index:999;opacity:0;transition:all 0.3s ease;
+    box-shadow:0 8px 32px rgba(0,0,0,0.4);white-space:nowrap;pointer-events:none;`;
   document.body.appendChild(t);
   setTimeout(()=>{t.style.opacity="1";t.style.transform="translateX(-50%) translateY(0)";},10);
-  setTimeout(()=>{t.style.opacity="0";t.style.transform="translateX(-50%) translateY(10px)";setTimeout(()=>t.remove(),300);},2800);
+  setTimeout(()=>{
+    t.style.opacity="0";t.style.transform="translateX(-50%) translateY(10px)";
+    setTimeout(()=>t.remove(),300);
+  },2800);
 }

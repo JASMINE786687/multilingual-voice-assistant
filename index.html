@@ -6,8 +6,307 @@
   <title>VAANI - Voice Assistant for Government Services</title>
   <link rel="stylesheet" href="style.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <!-- QR Code — free, no API key, works offline -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Tesseract OCR — free, runs in browser, no server needed -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+
+  <style>
+    /* ══ USAGE COUNTER BANNER ══ */
+    .usage-banner {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; margin: 8px 20px 0;
+      padding: 10px 24px; border-radius: 100px;
+      background: rgba(0,255,136,0.06);
+      border: 1px solid rgba(0,255,136,0.15);
+      font-size: 13px; color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      animation: fadeUp 0.6s 0.3s ease both;
+    }
+    .usage-num {
+      font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800;
+      background: linear-gradient(135deg, #00ff88, #00b4ff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .usage-dot { width: 6px; height: 6px; border-radius: 50%; background: #00ff88; animation: blink 2s infinite; }
+
+    /* ══ STEP PROGRESS TRACKER ══ */
+    .progress-wrap { margin: 16px 0 0; }
+    .progress-bar-outer {
+      height: 6px; background: rgba(255,255,255,0.08);
+      border-radius: 100px; overflow: hidden; margin-bottom: 10px;
+    }
+    .progress-bar-inner {
+      height: 100%; border-radius: 100px;
+      background: linear-gradient(90deg, #00ff88, #00b4ff);
+      transition: width 0.4s ease;
+    }
+    .progress-label {
+      font-size: 12px; color: var(--muted);
+      font-family: 'DM Sans', sans-serif; margin-bottom: 12px;
+    }
+    .steps-list li {
+      display: flex; align-items: flex-start;
+      gap: 10px; cursor: pointer;
+      user-select: none;
+    }
+    .step-check {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid var(--border); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; transition: all 0.25s; margin-top: 2px;
+      background: transparent;
+    }
+    .steps-list li.done .step-check {
+      background: linear-gradient(135deg, #00ff88, #00b4ff);
+      border-color: #00ff88; color: #020817;
+    }
+    .steps-list li.done .step-text {
+      text-decoration: line-through; opacity: 0.5;
+    }
+    .step-text { flex: 1; line-height: 1.65; }
+
+    /* ══ NEAREST OFFICE LOCATOR ══ */
+    .office-btn {
+      padding: 10px 20px; border-radius: 100px;
+      background: rgba(255,111,60,0.1);
+      border: 1px solid rgba(255,111,60,0.35);
+      color: var(--accent3); font-size: 14px; font-weight: 600;
+      font-family: 'DM Sans', sans-serif; cursor: pointer;
+      transition: all 0.2s; display: none;
+    }
+    .office-btn:hover { background: rgba(255,111,60,0.2); box-shadow: 0 0 16px rgba(255,111,60,0.3); }
+
+    /* ══ FORM SCANNER SECTION ══ */
+    .scanner-section {
+      background: linear-gradient(145deg, var(--card), var(--card2));
+      border: 1px solid var(--border);
+      border-radius: 28px; padding: 28px 32px;
+    }
+    .scanner-title {
+      font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800;
+      background: linear-gradient(135deg, #a855f7, #00b4ff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 6px;
+    }
+    .scanner-sub {
+      font-size: 13px; color: var(--muted);
+      font-family: 'DM Sans', sans-serif; margin-bottom: 20px;
+    }
+    .scanner-upload-area {
+      border: 2px dashed rgba(168,85,247,0.4);
+      border-radius: 18px; padding: 32px 20px;
+      text-align: center; cursor: pointer;
+      transition: all 0.25s; margin-bottom: 16px;
+      background: rgba(168,85,247,0.04);
+      position: relative;
+    }
+    .scanner-upload-area:hover {
+      border-color: rgba(168,85,247,0.7);
+      background: rgba(168,85,247,0.08);
+    }
+    .scanner-upload-area.dragover {
+      border-color: #a855f7;
+      background: rgba(168,85,247,0.12);
+    }
+    #scanFileInput { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .scanner-icon { font-size: 40px; margin-bottom: 10px; }
+    .scanner-upload-text { font-size: 14px; color: var(--muted); font-family: 'DM Sans', sans-serif; }
+    .scanner-upload-sub  { font-size: 12px; color: rgba(107,140,186,0.6); margin-top: 4px; }
+
+    /* camera button row */
+    .scanner-cam-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .cam-btn {
+      flex: 1; padding: 12px; border-radius: 14px; border: none;
+      background: linear-gradient(135deg, #a855f7, #00b4ff);
+      color: #fff; font-size: 14px; font-weight: 700;
+      font-family: 'DM Sans', sans-serif; cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .cam-btn:hover { transform: scale(1.02); }
+    .cam-btn.secondary {
+      background: transparent;
+      border: 1px solid rgba(168,85,247,0.4);
+      color: var(--purple);
+    }
+
+    /* preview */
+    #scanPreview {
+      display: none; width: 100%; max-height: 220px;
+      object-fit: contain; border-radius: 12px;
+      border: 1px solid var(--border); margin-bottom: 14px;
+    }
+    #scanVideo {
+      display: none; width: 100%; max-height: 260px;
+      border-radius: 12px; border: 1px solid var(--border);
+      margin-bottom: 12px; object-fit: cover;
+    }
+    #snapBtn {
+      display: none; width: 100%; padding: 12px; border-radius: 14px; border: none;
+      background: linear-gradient(135deg, #00ff88, #00b4ff);
+      color: #020817; font-size: 15px; font-weight: 800;
+      font-family: 'DM Sans', sans-serif; cursor: pointer; margin-bottom: 14px;
+    }
+
+    /* OCR progress */
+    .ocr-progress {
+      display: none; background: rgba(168,85,247,0.08);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;
+    }
+    .ocr-progress-label { font-size: 13px; color: var(--purple); margin-bottom: 8px; font-family: 'DM Sans', sans-serif; }
+    .ocr-bar-outer { height: 4px; background: rgba(255,255,255,0.08); border-radius: 100px; }
+    .ocr-bar-inner { height: 100%; background: linear-gradient(90deg,#a855f7,#00b4ff); border-radius: 100px; transition: width 0.3s; width: 0%; }
+
+    /* scan result */
+    .scan-result-card {
+      display: none;
+      background: rgba(168,85,247,0.06);
+      border: 1px solid rgba(168,85,247,0.25);
+      border-radius: 18px; padding: 20px 22px; margin-top: 14px;
+    }
+    .scan-result-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px;
+    }
+    .scan-result-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, rgba(168,85,247,0.2), rgba(0,180,255,0.15));
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .scan-result-title { font-family: 'Syne',sans-serif; font-size: 16px; font-weight: 800; color: var(--text); }
+    .scan-result-sub   { font-size: 12px; color: var(--muted); }
+    .scan-steps-list   { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .scan-step {
+      font-size: 13px; color: #c8d8f0; line-height: 1.6;
+      padding: 10px 14px; background: rgba(168,85,247,0.06);
+      border-radius: 10px; border-left: 3px solid #a855f7;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .scan-speak-btn {
+      margin-top: 14px; padding: 10px 22px; border-radius: 100px;
+      background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.4);
+      color: var(--purple); font-size: 14px; font-weight: 600;
+      font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.2s;
+    }
+    .scan-speak-btn:hover { background: rgba(168,85,247,0.22); }
+
+    /* ══ VOICE ONBOARDING OVERLAY ══ */
+    #onboardOverlay {
+      display: none; position: fixed; inset: 0; z-index: 600;
+      background: rgba(2,8,23,0.95); backdrop-filter: blur(16px);
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 30px;
+    }
+    #onboardOverlay.show { display: flex; }
+    .onboard-logo {
+      font-family: 'Syne', sans-serif; font-size: 52px; font-weight: 800;
+      background: linear-gradient(135deg, #00ff88, #00b4ff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 8px;
+    }
+    .onboard-subtitle { font-size: 14px; color: var(--muted); margin-bottom: 40px; font-family: 'DM Sans', sans-serif; }
+    .onboard-langs {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      justify-content: center; max-width: 420px; margin-bottom: 36px;
+    }
+    .onboard-lang-btn {
+      padding: 10px 20px; border-radius: 100px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text); font-size: 15px; font-weight: 600;
+      font-family: 'DM Sans', sans-serif; cursor: pointer;
+      transition: all 0.25s;
+    }
+    .onboard-lang-btn:hover, .onboard-lang-btn.speaking {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(0,255,136,0.1);
+      box-shadow: 0 0 20px rgba(0,255,136,0.25);
+    }
+    .onboard-wave {
+      display: flex; gap: 5px; align-items: flex-end; height: 40px; margin-bottom: 28px;
+    }
+    .onboard-bar {
+      width: 5px; border-radius: 100px; background: var(--accent);
+      animation: barWave 1.2s ease-in-out infinite;
+    }
+    .onboard-bar:nth-child(1){height:10px;animation-delay:0s}
+    .onboard-bar:nth-child(2){height:24px;animation-delay:0.1s}
+    .onboard-bar:nth-child(3){height:36px;animation-delay:0.2s}
+    .onboard-bar:nth-child(4){height:20px;animation-delay:0.3s}
+    .onboard-bar:nth-child(5){height:30px;animation-delay:0.2s}
+    .onboard-bar:nth-child(6){height:16px;animation-delay:0.1s}
+    .onboard-bar:nth-child(7){height:8px; animation-delay:0s}
+    .onboard-msg { font-size: 15px; color: var(--text); margin-bottom: 32px; text-align: center; min-height: 22px; font-family: 'DM Sans', sans-serif; }
+    .onboard-skip {
+      padding: 12px 36px; border-radius: 14px; border: none;
+      background: linear-gradient(135deg, #00ff88, #00b4ff);
+      color: #020817; font-size: 15px; font-weight: 800;
+      font-family: 'DM Sans', sans-serif; cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .onboard-skip:hover { transform: scale(1.04); }
+
+    /* ══ QR MODAL ══ */
+    #qrOverlay {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(2,8,23,0.85); backdrop-filter: blur(8px);
+      align-items: center; justify-content: center;
+    }
+    #qrOverlay.open { display: flex; }
+    #qrModal {
+      background: #0d1425; border: 1px solid rgba(0,255,136,0.3);
+      border-radius: 24px; padding: 32px; text-align: center;
+      max-width: 300px; width: 90%; animation: fadeUp 0.3s ease both;
+    }
+    #qrTitle { font-family:'Syne',sans-serif; font-size:18px; font-weight:800;
+      background:linear-gradient(135deg,#00ff88,#00b4ff);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px; }
+    #qrSubtitle { font-size:12px;color:#6b8cba;margin-bottom:18px;font-family:'DM Sans',sans-serif; }
+    #qrCanvas { background:#fff;border-radius:12px;padding:14px;display:inline-block;margin-bottom:16px; }
+    #qrUrl { font-size:11px;color:#6b8cba;word-break:break-all;margin-bottom:16px;padding:8px 12px;
+      background:rgba(255,255,255,0.04);border-radius:8px;border:1px solid #1e3a5f;font-family:'DM Sans',sans-serif; }
+    .qr-actions { display:flex;gap:10px;justify-content:center; }
+    .qr-dl-btn {
+      padding:10px 18px;border-radius:12px;border:none;
+      background:linear-gradient(135deg,#00ff88,#00b4ff);
+      color:#020817;font-size:13px;font-weight:800;
+      font-family:'DM Sans',sans-serif;cursor:pointer;transition:transform 0.2s;
+    }
+    .qr-dl-btn:hover { transform:scale(1.04); }
+    .qr-close-btn {
+      padding:10px 18px;border-radius:12px;border:1px solid #1e3a5f;
+      background:transparent;color:#6b8cba;font-size:13px;font-weight:600;
+      font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;
+    }
+    .qr-close-btn:hover { border-color:#ff6b6b;color:#ff6b6b; }
+    .qr-btn {
+      padding:10px 20px;border-radius:100px;
+      background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);
+      color:#00ff88;font-size:14px;font-weight:600;
+      font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;display:none;
+    }
+    .qr-btn:hover { background:rgba(0,255,136,0.18); }
+  </style>
 </head>
 <body>
+
+  <!-- ══ VOICE ONBOARDING OVERLAY ══ -->
+  <div id="onboardOverlay">
+    <div class="onboard-logo">VAANI.</div>
+    <p class="onboard-subtitle">Voice Assistant for Government Services</p>
+    <div class="onboard-wave">
+      <div class="onboard-bar"></div><div class="onboard-bar"></div>
+      <div class="onboard-bar"></div><div class="onboard-bar"></div>
+      <div class="onboard-bar"></div><div class="onboard-bar"></div>
+      <div class="onboard-bar"></div>
+    </div>
+    <p class="onboard-msg" id="onboardMsg">Choose your language to begin</p>
+    <div class="onboard-langs" id="onboardLangs"></div>
+    <button class="onboard-skip" onclick="skipOnboard()">Get Started →</button>
+  </div>
 
   <div class="bg-grid"></div>
   <div class="bg-glow"></div>
@@ -18,8 +317,15 @@
       <span class="status-dot"></span>
       <span class="status-text">Checking...</span>
     </div>
-    <div class="nav-badge">🏆 Hackathon 2026</div>
+    <div class="nav-badge">🏆 Hackathon 2025</div>
   </nav>
+
+  <!-- ══ LIVE USAGE COUNTER ══ -->
+  <div class="usage-banner">
+    <div class="usage-dot"></div>
+    <span id="usageCount" class="usage-num">0</span>
+    <span>citizens helped today · Free · No billing</span>
+  </div>
 
   <header>
     <div class="hero-tag">🇮🇳 Made for Every Indian Citizen</div>
@@ -37,12 +343,11 @@
 
   <main>
 
+    <!-- Main voice card -->
     <div class="card">
       <div class="card-label"><span class="label-dot"></span>Ask your question</div>
-
       <div class="lang-row"><span class="lang-label">🌐 Language</span></div>
       <div class="lang-pills" id="langPillsRow"></div>
-
       <div class="voice-section">
         <div class="voice-bars" id="voiceBars">
           <div class="bar"></div><div class="bar"></div><div class="bar"></div>
@@ -57,9 +362,7 @@
         </div>
         <p class="status" id="status">Tap mic to speak</p>
       </div>
-
       <div class="divider"><span class="divider-text">or type below</span></div>
-
       <div class="input-row">
         <input class="text-input" id="textInput"
           placeholder="Type: ration / pension / aadhaar / voter / health / pan..."
@@ -69,11 +372,13 @@
       <div class="error-box" id="errorBox"></div>
     </div>
 
+    <!-- Service chips -->
     <div class="quick-section">
       <p class="quick-label">⚡ Quick Access — All 12 Government Services</p>
       <div class="services-row" id="servicesGrid"></div>
     </div>
 
+    <!-- Result card with step tracker + office + QR -->
     <div class="result-card" id="resultBox" style="display:none;">
       <div class="result-header">
         <div class="result-icon-wrap"><span class="result-icon">📋</span></div>
@@ -82,11 +387,24 @@
           <h3 id="serviceName"></h3>
         </div>
       </div>
-      <ol class="steps-list" id="stepsList"></ol>
-      <div class="result-actions">
-        <button class="speak-btn" onclick="speakResult()">🔊 Read Aloud</button>
-        <a id="govLink" href="#" target="_blank" class="link-btn" style="display:none;">🌐 Official Website →</a>
+
+      <!-- Progress bar -->
+      <div class="progress-wrap">
+        <div class="progress-label" id="progressLabel">0 of 0 steps completed</div>
+        <div class="progress-bar-outer">
+          <div class="progress-bar-inner" id="progressBar" style="width:0%"></div>
+        </div>
       </div>
+
+      <ol class="steps-list" id="stepsList"></ol>
+
+      <div class="result-actions" style="flex-wrap:wrap;gap:10px;">
+        <button class="speak-btn" onclick="speakResult()">🔊 Read Aloud</button>
+        <button class="office-btn" id="officeBtn" onclick="findNearestOffice()">📍 Find Nearest Office</button>
+        <button class="qr-btn"    id="qrBtn"     onclick="showQR()">📷 Scan QR</button>
+        <a id="govLink" href="#" target="_blank" class="link-btn" style="display:none;">🌐 Official Portal →</a>
+      </div>
+
       <div class="feedback-row">
         <span class="feedback-label">Was this helpful?</span>
         <button id="thumbsUp"   class="feedback-btn" onclick="sendFeedback('helpful')">👍</button>
@@ -94,6 +412,46 @@
       </div>
     </div>
 
+    <!-- ══ FORM SCANNER ══ -->
+    <div class="scanner-section">
+      <div class="scanner-title">📷 Form Scanner — AI</div>
+      <p class="scanner-sub">Photograph or upload any government form. VAANI reads it and explains how to fill it — in your language, step by step.</p>
+
+      <div class="scanner-upload-area" id="uploadArea">
+        <input type="file" id="scanFileInput" accept="image/*" onchange="handleScanFile(event)"/>
+        <div class="scanner-icon">📄</div>
+        <div class="scanner-upload-text">Tap to upload or drag a form image here</div>
+        <div class="scanner-upload-sub">JPG · PNG · PDF screenshot · Photo from camera roll</div>
+      </div>
+
+      <div class="scanner-cam-row">
+        <button class="cam-btn" onclick="openCamera()">📸 Open Camera</button>
+        <button class="cam-btn secondary" id="cancelCamBtn" onclick="closeCamera()" style="display:none;">✕ Cancel</button>
+      </div>
+
+      <video id="scanVideo" autoplay playsinline></video>
+      <button id="snapBtn" onclick="snapPhoto()">📸 Capture Form</button>
+      <img id="scanPreview" alt="Form preview"/>
+
+      <div class="ocr-progress" id="ocrProgress">
+        <div class="ocr-progress-label" id="ocrLabel">🔍 Reading form... please wait</div>
+        <div class="ocr-bar-outer"><div class="ocr-bar-inner" id="ocrBar"></div></div>
+      </div>
+
+      <div class="scan-result-card" id="scanResultCard">
+        <div class="scan-result-header">
+          <div class="scan-result-icon">🤖</div>
+          <div>
+            <div class="scan-result-title" id="scanFormName">Form Analysis</div>
+            <div class="scan-result-sub" id="scanFormSub">Step-by-step filling guide</div>
+          </div>
+        </div>
+        <ul class="scan-steps-list" id="scanStepsList"></ul>
+        <button class="scan-speak-btn" onclick="speakScanResult()">🔊 Read Instructions Aloud</button>
+      </div>
+    </div>
+
+    <!-- How it works -->
     <div class="how-section">
       <p class="how-title">⚙️ How it works</p>
       <div class="how-steps">
@@ -124,6 +482,20 @@
     <p class="footer-text">Built for the people · Powered by AI · Made in India 🇮🇳</p>
     <p class="footer-copy">© 2025 Team VAANI · Hackathon Project</p>
   </footer>
+
+  <!-- QR Modal -->
+  <div id="qrOverlay" onclick="closeQR(event)">
+    <div id="qrModal">
+      <div id="qrTitle">Scan to Open</div>
+      <div id="qrSubtitle">Official government portal</div>
+      <div id="qrCanvas"></div>
+      <div id="qrUrl"></div>
+      <div class="qr-actions">
+        <button class="qr-dl-btn" onclick="downloadQR()">⬇ Download</button>
+        <button class="qr-close-btn" onclick="document.getElementById('qrOverlay').classList.remove('open');document.body.style.overflow=''">Close</button>
+      </div>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>
